@@ -59,21 +59,21 @@
   "  --ddr_mod1_available check if DDR3 module is installed in socket 1\n"     \
   "\n"
 
-const char *composeFormat(const char *name, const char *fmt, int withName) {
+std::string composeFormat(const char *name, const char *fmt, int withName) {
   std::string full_fmt = "";
   if (withName) {
     full_fmt += "%s: ";
   }
   full_fmt += std::string(fmt) + "\n";
-  return full_fmt.c_str();
+  return full_fmt;
 }
 
 #define PRINT_METRIC(name, fmt, value, withName)                               \
-  const char *full_fmt = composeFormat(name, fmt, withName);                   \
+  std::string full_fmt = composeFormat(name, fmt, withName);                   \
   if (withName) {                                                              \
-    printf(full_fmt, name, value);                                             \
+    printf(full_fmt.c_str(), name, value);                                     \
   } else {                                                                     \
-    printf(full_fmt, value);                                                   \
+    printf(full_fmt.c_str(), value);                                           \
   }
 
 int main(int argc, char *argv[]) {
