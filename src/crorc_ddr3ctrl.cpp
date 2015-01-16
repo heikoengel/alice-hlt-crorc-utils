@@ -170,11 +170,9 @@ int main(int argc, char *argv[]) {
       case 'P':
         sSetReplayStatus = 1;
         break;
-        break;
       case 'R':
         sSetChannelReset = 1;
         sChannelResetVal = strtol(optarg, NULL, 0);
-        break;
         break;
       case '?':
         return -1;
@@ -493,7 +491,7 @@ int main(int argc, char *argv[]) {
             const char *filename = (*iter).c_str();
             next_addr =
                 fileToRam(sm, chId, filename, next_addr, is_last_event);
-            iter++;
+            ++iter;
         }
         dr->setStartAddress(ddr3_ch_start_addr);
         cout << "Done." << endl;
