@@ -28,6 +28,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  **/
+#include <unistd.h>
 
 #include <librorc.h>
 
@@ -104,11 +105,7 @@ main
     librorc::bar *bar = NULL;
     try
     {
-    #ifdef MODELSIM
-        bar = new librorc::sim_bar(dev, 1);
-    #else
-        bar = new librorc::rorc_bar(dev, 1);
-    #endif
+        bar = new librorc::bar(dev, 1);
     }
     catch(...)
     {
@@ -232,7 +229,6 @@ main
             {
                 // EventFilter
                 librorc::eventfilter *filter = new librorc::eventfilter(link);
-                filter->disable();
                 filter->setFilterMask(0);
                 delete filter;
             }

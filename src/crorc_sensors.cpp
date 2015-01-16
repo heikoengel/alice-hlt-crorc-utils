@@ -18,10 +18,13 @@
  *
  * */
 
-#include <librorc.h>
 #include <getopt.h>
 #include <string>
 #include <sstream>
+#include <cstdio>
+#include <iomanip>
+
+#include <librorc.h>
 
 #define HELP_TEXT                                                              \
   "crorc_sensors usage: \n"                                                    \
@@ -184,11 +187,7 @@ int main(int argc, char *argv[]) {
 
   librorc::bar *bar = NULL;
   try {
-#ifdef MODELSIM
-    bar = new librorc::sim_bar(dev, 1);
-#else
-    bar = new librorc::rorc_bar(dev, 1);
-#endif
+    bar = new librorc::bar(dev, 1);
   }
   catch (...) {
     delete dev;

@@ -33,8 +33,9 @@
 #include <cstring>
 #include <iostream>
 #include <iomanip>
+#include <unistd.h>
 
-#include "librorc.h"
+#include <librorc.h>
 
 using namespace std;
 
@@ -187,11 +188,7 @@ int
     librorc::bar *bar = NULL;
     try
     {
-    #ifdef MODELSIM
-        bar = new librorc::sim_bar(dev, 1);
-    #else
-        bar = new librorc::rorc_bar(dev, 1);
-    #endif
+        bar = new librorc::bar(dev, 1);
     }
     catch(...)
     {

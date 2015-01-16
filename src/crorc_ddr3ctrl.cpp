@@ -28,8 +28,15 @@
  *
  **/
 
-#include <librorc.h>
+#include <cstdio>
+#include <iomanip>
 #include <getopt.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+#include <librorc.h>
 
 using namespace std;
 
@@ -209,11 +216,7 @@ int main(int argc, char *argv[]) {
   /** Instantiate a new bar */
   librorc::bar *bar = NULL;
   try {
-#ifdef MODELSIM
-    bar = new librorc::sim_bar(dev, 1);
-#else
-    bar = new librorc::rorc_bar(dev, 1);
-#endif
+    bar = new librorc::bar(dev, 1);
   } catch (...) {
     cerr << "ERROR: failed to initialize BAR." << endl;
     delete dev;

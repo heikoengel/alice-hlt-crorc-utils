@@ -30,9 +30,11 @@
  * - check GTX/DDL Domain is up before accessing
  **/
 
-#include <librorc.h>
 #include <getopt.h>
 #include <sstream>
+#include <iomanip>
+
+#include <librorc.h>
 #include "class_crorc.hpp"
 
 using namespace ::std;
@@ -425,11 +427,7 @@ int main(int argc, char *argv[]) {
           dev->getSlot() << "." << hex << setw(1) << (uint32_t) dev->getFunc();
 
       try {
-#ifdef MODELSIM
-        bar = new librorc::sim_bar(dev, 1);
-#else
-        bar = new librorc::rorc_bar(dev, 1);
-#endif
+        bar = new librorc::bar(dev, 1);
       }
       catch (...) {
         cout << " - BAR1 access failed!" << endl;

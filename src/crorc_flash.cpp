@@ -29,7 +29,11 @@
  *
  **/
 
+#include <iomanip>
+#include <cstdio>
+#include <unistd.h>
 #include <librorc.h>
+
 
 #define HELP_TEXT                                                              \
   "crorc_flash usage:\n"                                                       \
@@ -219,11 +223,7 @@ int main(int argc, char *argv[]) {
   /** initialize BAR **/
   librorc::bar *bar = NULL;
   try {
-#ifdef MODELSIM
-    bar = new librorc::sim_bar(dev, 0);
-#else
-    bar = new librorc::rorc_bar(dev, 0);
-#endif
+    bar = new librorc::bar(dev, 0);
   }
   catch (...) {
     cout << "ERROR: failed to initialize BAR0." << endl;

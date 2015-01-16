@@ -48,11 +48,7 @@ crorc::crorc(uint32_t deviceId) {
   }
 
   try {
-#ifdef MODELSIM
-    m_bar = new librorc::sim_bar(m_dev, 1);
-#else
-    m_bar = new librorc::rorc_bar(m_dev, 1);
-#endif
+    m_bar = new librorc::bar(m_dev, 1);
   } catch (...) {
     throw;
   }
