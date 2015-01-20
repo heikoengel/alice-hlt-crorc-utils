@@ -57,6 +57,9 @@ void list_options(const struct option *long_options, int nargs) {
     }
     cout << endl;
   }
+  cout << endl << "Parameters with optional value parameter can be used to"
+      " get the current value without specifying a value or set a new value"
+      " by adding the value parameter." << endl;
 }
 
 void print_linkpllstate(librorc::gtxpll_settings pllcfg) {
@@ -138,8 +141,8 @@ string uptime2string(uint32_t uptime_seconds) {
   uint32_t hours = (uptime_seconds / 60 / 60) % 24;
   uint32_t minutes = (uptime_seconds / 60) % 60;
   uint32_t seconds = uptime_seconds % 60;
-  ss << days << "d " << setfill('0') << setw(2) << hours << ":" << minutes
-     << ":" << seconds;
+  ss << days << "d " << setfill('0') << setw(2) << hours << ":" << setfill('0')
+     << setw(2) << minutes << ":" << setfill('0') << setw(2) << seconds;
   return ss.str();
 }
 
@@ -200,6 +203,8 @@ typedef struct {
   tControlSet linkmask;
   tControlSet linkspeed;
   tControlSet gtxReset;
+  tControlSet gtxTxReset;
+  tControlSet gtxRxReset;
   tControlSet gtxLoopback;
   tControlSet gtxRxeqmix;
   tControlSet gtxTxdiffctrl;
@@ -241,6 +246,8 @@ int main(int argc, char *argv[]) {
       {"linkspeed", optional_argument, 0, 's'},
       {"listlinkspeeds", no_argument, 0, 'S'},
       {"gtxreset", optional_argument, 0, 'R'},
+      {"gtxtxreset", optional_argument, 0, 'a'},
+      {"gtxrxreset", optional_argument, 0, 'e'},
       {"gtxloopback", optional_argument, 0, 'L'},
       {"gtxrxeqmix", optional_argument, 0, 'M'},
       {"gtxtxdiffctrl", optional_argument, 0, 'D'},
@@ -263,9 +270,9 @@ int main(int argc, char *argv[]) {
   /** Parse command line arguments **/
   if (argc > 1) {
     while (1) {
-      int opt =
-          getopt_long(argc, argv, "hf::lm::b::n:c:s::S::R::L::M::D::P::O::d::C::t::",
-                      long_options, NULL);
+      int opt = getopt_long(
+          argc, argv, "hf::lm::b::n:c:s::S::R::L::M::D::P::O::d::C::t::a::e::",
+          long_options, NULL);
       if (opt == -1) {
         break;
       }
@@ -351,6 +358,16 @@ int main(int argc, char *argv[]) {
       case 'R':
         // gtxreset
         cmd.gtxReset = evalParam(optarg);
+        break;
+
+      case 'a':
+        // gtxtxreset
+        cmd.gtxTxReset = evalParam(optarg);
+        break;
+
+      case 'e':
+        // gtxtxreset
+        cmd.gtxRxReset = evalParam(optarg);
         break;
 
       case 'L':
@@ -455,8 +472,9 @@ int main(int argc, char *argv[]) {
       }
 
       cout << " " << setw(10) << setfill(' ') << left
-           << sm->firmwareDescription() << " Date: "
-           << date2string(sm->FwBuildDate()) << ", Rev: 0x" << hex << setw(7)
+           << sm->firmwareDescription() << right << " Date: "
+           << date2string(sm->FwBuildDate()) << ", Rev: 0x"
+           << hex << setw(7) << setfill('0')
            << sm->FwRevision() << ", Uptime: "
            << uptime2string(sm->uptimeSeconds()) << endl;
 
@@ -561,15 +579,48 @@ int main(int argc, char *argv[]) {
       }
   }
 
-
   if (cmd.gtxReset.get) {
     for (uint32_t i = ch_start; i <= ch_end; i++) {
-      cout << "Ch" << i << " GTX Reset: " << rorc->m_gtx[i]->getReset() << endl;
+      uint32_t val = rorc->m_gtx[i]->getReset();
+      cout << "Ch" << i << "\tGTX Full Reset: " << (val & 1) << endl
+           << "\tGTX RX Reset: " << ((val >> 1) & 1) << endl
+           << "\tGTX TX Reset: " << ((val >> 2) & 1) << endl;
     }
   } else if (cmd.gtxReset.set) {
     for (uint32_t i = ch_start; i <= ch_end; i++) {
-      rorc->m_gtx[i]->setReset(cmd.gtxReset.value);
+      // NOTE: this overrides any RxReset or RxReset value
+      rorc->m_gtx[i]->setReset(cmd.gtxReset.value & 1);
     }
+  }
+
+  if (cmd.gtxRxReset.get) {
+      for (uint32_t i = ch_start; i <= ch_end; i++) {
+          cout << "Ch" << i
+              << " GTX RX Reset: " << ((rorc->m_gtx[i]->getReset() >> 1) & 1)
+              << endl;
+      }
+  } else if (cmd.gtxRxReset.set) {
+      for (uint32_t i = ch_start; i <= ch_end; i++) {
+          uint32_t val = rorc->m_gtx[i]->getReset();
+          val &= ~(1<<1); // clear RX Reset bit
+          val |= ((cmd.gtxRxReset.value & 1) << 1);
+          rorc->m_gtx[i]->setReset(val);
+      }
+  }
+
+  if (cmd.gtxTxReset.get) {
+      for (uint32_t i = ch_start; i <= ch_end; i++) {
+          cout << "Ch" << i
+              << " GTX TX Reset: " << ((rorc->m_gtx[i]->getReset() >> 2) & 1)
+              << endl;
+      }
+  } else if (cmd.gtxTxReset.set) {
+      for (uint32_t i = ch_start; i <= ch_end; i++) {
+          uint32_t val = rorc->m_gtx[i]->getReset();
+          val &= ~(1<<2); // clear TX Reset bit
+          val |= ((cmd.gtxTxReset.value & 1) << 2);
+          rorc->m_gtx[i]->setReset(val);
+      }
   }
 
   if (cmd.gtxLoopback.get) {
