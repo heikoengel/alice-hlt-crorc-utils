@@ -88,33 +88,40 @@ void print_gtxstate(uint32_t i, librorc::gtx *gtx) {
 }
 
 void print_ddlstate(uint32_t i, crorc *rorc) {
-  cout << "DDL" << i << " Status" << endl;
-  cout << "\tReset       : " << rorc->m_ddl[i]->getReset() << endl;
-  cout << "\tIF-Enable   : " << rorc->m_ddl[i]->getEnable() << endl;
-  cout << "\tLink Full   : " << rorc->m_ddl[i]->linkFull() << endl;
-  cout << "\tDMA Deadtime: " << rorc->m_ddl[i]->getDmaDeadtime() << endl;
-  cout << "\tEventcount  : " << rorc->m_ddl[i]->getEventcount() << endl;
-  if (rorc->m_diu[i] != NULL) {
-    cout << "\tLink Up     : " << rorc->m_diu[i]->linkUp() << endl;
-    cout << "\tDDL Deadtime: " << rorc->m_diu[i]->getDdlDeadtime() << endl;
-    cout << "\tLast Command: 0x" << hex << rorc->m_diu[i]->lastDiuCommand()
-         << dec << endl;
-    cout << "\tLast FESTW  : 0x" << hex
-         << rorc->m_diu[i]->lastFrontEndStatusWord() << dec << endl;
-    cout << "\tLast CTSTW  : 0x" << hex
-         << rorc->m_diu[i]->lastCommandTransmissionStatusWord() << dec << endl;
-    cout << "\tLast DTSTW  : 0x" << hex
-         << rorc->m_diu[i]->lastDataTransmissionStatusWord() << dec << endl;
-    cout << "\tLast IFSTW  : 0x" << hex
-         << rorc->m_diu[i]->lastInterfaceStatusWord() << dec << endl;
-  }
-  if (rorc->m_siu[i] != NULL) {
-    cout << "\tDDL Deadtime: " << rorc->m_siu[i]->getDdlDeadtime() << endl;
-    cout << "\tLast FECW   : 0x" << hex
-         << rorc->m_siu[i]->lastFrontEndCommandWord() << dec << endl;
-    cout << "IFFIFOEmpty   : " << rorc->m_siu[i]->isInterfaceFifoEmpty() << endl;
-    cout << "IFFIFOFull    : " << rorc->m_siu[i]->isInterfaceFifoFull() << endl;
-    cout << "SourceEmpty   : " << rorc->m_siu[i]->isSourceEmpty() << endl;
+  if (rorc->m_link[i]->isDdlDomainReady()) {
+    cout << "DDL" << i << " Status" << endl;
+    cout << "\tReset       : " << rorc->m_ddl[i]->getReset() << endl;
+    cout << "\tIF-Enable   : " << rorc->m_ddl[i]->getEnable() << endl;
+    cout << "\tLink Full   : " << rorc->m_ddl[i]->linkFull() << endl;
+    cout << "\tDMA Deadtime: " << rorc->m_ddl[i]->getDmaDeadtime() << endl;
+    cout << "\tEventcount  : " << rorc->m_ddl[i]->getEventcount() << endl;
+    if (rorc->m_diu[i] != NULL) {
+      cout << "\tLink Up     : " << rorc->m_diu[i]->linkUp() << endl;
+      cout << "\tDDL Deadtime: " << rorc->m_diu[i]->getDdlDeadtime() << endl;
+      cout << "\tLast Command: 0x" << hex << rorc->m_diu[i]->lastDiuCommand()
+           << dec << endl;
+      cout << "\tLast FESTW  : 0x" << hex
+           << rorc->m_diu[i]->lastFrontEndStatusWord() << dec << endl;
+      cout << "\tLast CTSTW  : 0x" << hex
+           << rorc->m_diu[i]->lastCommandTransmissionStatusWord() << dec
+           << endl;
+      cout << "\tLast DTSTW  : 0x" << hex
+           << rorc->m_diu[i]->lastDataTransmissionStatusWord() << dec << endl;
+      cout << "\tLast IFSTW  : 0x" << hex
+           << rorc->m_diu[i]->lastInterfaceStatusWord() << dec << endl;
+    }
+    if (rorc->m_siu[i] != NULL) {
+      cout << "\tDDL Deadtime: " << rorc->m_siu[i]->getDdlDeadtime() << endl;
+      cout << "\tLast FECW   : 0x" << hex
+           << rorc->m_siu[i]->lastFrontEndCommandWord() << dec << endl;
+      cout << "IFFIFOEmpty   : " << rorc->m_siu[i]->isInterfaceFifoEmpty()
+           << endl;
+      cout << "IFFIFOFull    : " << rorc->m_siu[i]->isInterfaceFifoFull()
+           << endl;
+      cout << "SourceEmpty   : " << rorc->m_siu[i]->isSourceEmpty() << endl;
+    }
+  } else {
+    cout << "DDL" << i << " Clock DOWN!" << endl;
   }
 }
 
@@ -140,13 +147,15 @@ void printLinkStatus(t_linkStatus ls, uint32_t linkId) {
     cout << "Ch" << setw(2) << linkId << ":";
     if (ls.gtx_inReset) {
         cout << " IN RESET!" << endl;
-    } else if (!ls.domainReady) {
+    } else if (!ls.gtx_domainReady) {
         cout << " NO CLOCK!" << endl;
     } else if (!ls.gtx_linkUp) {
         cout << " GTX DOWN!" << endl;
     } else {
         cout << " GTX UP,";
-        if (ls.ddl_linkUp) {
+        if (!ls.ddl_domainReady) {
+            cout << " DDL CLK STOPPED";
+        } else if (ls.ddl_linkUp) {
             cout << " DDL UP";
         } else {
             cout << " DDL DOWN";

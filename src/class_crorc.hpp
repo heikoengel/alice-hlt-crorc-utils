@@ -43,12 +43,13 @@
 
 typedef struct {
     bool gtx_inReset;
-    bool domainReady;
+    bool gtx_domainReady;
     bool gtx_linkUp;
     uint32_t gtx_dispErrCnt;
     uint32_t gtx_realignCnt;
     uint32_t gtx_nitCnt;
     uint32_t gtx_losCnt;
+    bool ddl_domainReady;
     bool ddl_linkUp;
     bool ddl_linkFull;
 } t_linkStatus;

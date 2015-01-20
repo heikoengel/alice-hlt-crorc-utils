@@ -455,7 +455,7 @@ int main(int argc, char *argv[]) {
       /** create link instance */
       librorc::link *link = new librorc::link(bar, chId);
 
-      if (!link->isGtxDomainReady()) {
+      if (!link->isDdlDomainReady()) {
         cout << "WARNING: Channel " << chId
              << " clock not ready - skipping..." << endl;
         delete link;

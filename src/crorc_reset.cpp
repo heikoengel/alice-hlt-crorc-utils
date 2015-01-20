@@ -138,11 +138,10 @@ main
     for ( uint32_t i=start_channel; i<=end_channel; i++ )
     {
         librorc::link *link = new librorc::link(bar, i);
-        librorc::gtx *gtx = new librorc::gtx(link);
         uint32_t link_type = link->linkType();
         librorc::dma_channel *ch = new librorc::dma_channel(link);
 
-
+        librorc::gtx *gtx = new librorc::gtx(link);
         if ( do_full_reset )
         {
             gtx->setReset(1);
@@ -151,10 +150,14 @@ main
             link->waitForGTXDomain();
         }
 
-        if(link->isGtxDomainReady())
+        if(link->isGtxDomainReady()) {
+            gtx->clearErrorCounters();
+        }
+        delete gtx;
+
+        if(link->isDdlDomainReady())
         {
             link->setFlowControlEnable(0);
-            gtx->clearErrorCounters();
 
             switch( link_type )
             {
@@ -242,7 +245,6 @@ main
         ch->readAndClearPtrStallFlags();
         ch->setRateLimit(0);
 
-        delete gtx;
         delete ch;
         delete link;
     }

@@ -157,21 +157,20 @@ main
                  << HEXSTR(link->pciReg(i), 8) << endl;
         }
 
-        if( link->isGtxDomainReady() )
-        {
-            /** print DDL registers */
-            for( int i=0; i<32; i++ )
-            {
-                cout << "CH" << ch << " DDL reg " << setw(2) << i << ": "
-                    << HEXSTR(link->ddlReg(i), 8) << endl;
-            }
+        if (link->isDdlDomainReady()) {
+          /** print DDL registers */
+          for (int i = 0; i < 32; i++) {
+            cout << "CH" << ch << " DDL reg " << setw(2) << i << ": "
+                 << HEXSTR(link->ddlReg(i), 8) << endl;
+          }
+        }
 
-            /** print GTX registers */
-            for( int i=0; i<7; i++ )
-            {
-                cout << "CH" << ch << " GTX reg " << setw(2) << i << ": "
-                    << HEXSTR(link->gtxReg(i), 8) << endl;
-            }
+        if (link->isGtxDomainReady()) {
+          /** print GTX registers */
+          for (int i = 0; i < 7; i++) {
+            cout << "CH" << ch << " GTX reg " << setw(2) << i << ": "
+                 << HEXSTR(link->gtxReg(i), 8) << endl;
+          }
         }
 
         /** print EBDM sglist */

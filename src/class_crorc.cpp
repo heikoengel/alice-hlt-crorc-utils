@@ -187,8 +187,8 @@ t_linkStatus crorc::getLinkStatus(uint32_t i) {
   t_linkStatus ls;
   memset(&ls, 0, sizeof(ls));
   ls.gtx_inReset = (m_gtx[i]->getReset() == 1);
-  ls.domainReady = m_gtx[i]->isDomainReady();
-  if (!ls.domainReady) {
+  ls.gtx_domainReady = m_gtx[i]->isDomainReady();
+  if (!ls.gtx_domainReady) {
       return ls;
   }
   ls.gtx_linkUp = m_gtx[i]->isLinkUp();
@@ -196,12 +196,17 @@ t_linkStatus crorc::getLinkStatus(uint32_t i) {
   ls.gtx_realignCnt = m_gtx[i]->getRealignCount();
   ls.gtx_nitCnt = m_gtx[i]->getRxNotInTableErrorCount();
   ls.gtx_losCnt = m_gtx[i]->getRxLossOfSignalErrorCount();
+
+  ls.ddl_domainReady = m_link[i]->isDdlDomainReady();
+  if (!ls.ddl_domainReady) {
+    return ls;
+  }
   if (m_linkType[i] == RORC_CFG_LINK_TYPE_DIU) {
-      ls.ddl_linkUp = m_diu[i]->linkUp();
+    ls.ddl_linkUp = m_diu[i]->linkUp();
   } else if (m_linkType[i] == RORC_CFG_LINK_TYPE_SIU) {
-      ls.ddl_linkUp = ls.gtx_linkUp;
+    ls.ddl_linkUp = ls.gtx_linkUp;
   } else {
-      ls.ddl_linkUp = true;
+    ls.ddl_linkUp = true;
   }
   ls.ddl_linkFull = m_ddl[i]->linkFull();
   return ls;
