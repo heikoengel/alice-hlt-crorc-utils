@@ -195,7 +195,7 @@ t_linkStatus crorc::getLinkStatus(uint32_t i) {
   ls.gtx_dispErrCnt = m_gtx[i]->getDisparityErrorCount();
   ls.gtx_realignCnt = m_gtx[i]->getRealignCount();
   ls.gtx_nitCnt = m_gtx[i]->getRxNotInTableErrorCount();
-  ls.gtx_losCnt = m_gtx[i]->getRxLossOfSignalErrorCount();
+  ls.gtx_losCnt = m_gtx[i]->getRxLossOfSyncErrorCount();
 
   ls.ddl_domainReady = m_link[i]->isDdlDomainReady();
   if (!ls.ddl_domainReady) {

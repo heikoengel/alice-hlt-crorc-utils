@@ -84,7 +84,7 @@ void print_gtxstate(uint32_t i, librorc::gtx *gtx) {
     cout << "\tDisp.Errors  : " << gtx->getDisparityErrorCount() << endl
          << "\tRealignCount : " << gtx->getRealignCount() << endl
          << "\tRX NIT Errors: " << gtx->getRxNotInTableErrorCount() << endl
-         << "\tRX LOS Errors: " << gtx->getRxLossOfSignalErrorCount() << endl;
+         << "\tRX LOS Errors: " << gtx->getRxLossOfSyncErrorCount() << endl;
   } else {
     cout << "\tDomain       : DOWN!" << endl;
   }
