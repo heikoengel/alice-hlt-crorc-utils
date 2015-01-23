@@ -494,7 +494,7 @@ int main(int argc, char *argv[]) {
             ++iter;
         }
         dr->setStartAddress(ddr3_ch_start_addr);
-        cout << "Done." << endl;
+        cout << "Ch " << chId << " file(s) to RAM done." << endl;
       }
 
       if (sSetOneshot) {

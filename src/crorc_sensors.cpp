@@ -50,7 +50,7 @@
   "  --smbus_slv_addr     print SMBus Slave Address for Configuration\n"       \
   "                       Controller access\n"                                 \
   "  --num_qsfps          print number of QSFP modules installed\n"            \
-  "  --num_dma_ch         print number of DMA channels supported by "          \
+  "  --num_dma_ch         print number of DMA channels supported by\n"         \
   "                       firmware\n"                                          \
   "  --num_ddls           print number of DDLs supported by firmware\n"        \
   "  --qsfp_temp          print QSFP Module temperature. requires --qsfp\n"    \

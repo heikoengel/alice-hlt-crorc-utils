@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# make sure uio_pci_dma is loaded
+if [ ! -f /sys/bus/pci/drivers/uio_pci_dma/new_id ]
+then
+  /sbin/modprobe uio_pci_dma
+fi
+
+# bind all C-RORCs to uio_pci_dma
+echo "10dc 01a0" >> /sys/bus/pci/drivers/uio_pci_dma/new_id
+
+# remove all devices bound to uio_pci_dma
+find -L /sys/module/uio_pci_dma/drivers/pci\:uio_pci_dma/ -maxdepth 2 -iname "remove" -exec sh -c 'echo 1 > {}' \; 2>&1  | sed -n 's/.*File system loop.*\([0-9:\.]\{12\}\+\).*/Removing device at \1/p'
+
+# rescan PCIe bus
+echo "Rescanning..."
+echo 1 > /sys/bus/pci/rescan
+
+# bind all C-RORCs to uio_pci_dma
+echo "10dc 01a0" >> /sys/bus/pci/drivers/uio_pci_dma/new_id
+
+# chmod a+rw for all detected devices
+find -L /sys/module/uio_pci_dma/drivers/pci\:uio_pci_dma/ -maxdepth 2 -iname "*resource1*" -exec chmod a+rw {} \; 2>&1 | sed -n 's/.*\([0-9:\.]\{12\}\+\).*/Found device at \1/p'

@@ -170,6 +170,7 @@ main
                         diu->clearDdlDeadtime();
                         diu->clearDmaDeadtime();
                         diu->clearAllLastStatusWords();
+                        diu->setReset(0);
                         delete diu;
 
                         if( firmware_type == RORC_CFG_PROJECT_hlt_in_fcf )
@@ -190,6 +191,7 @@ main
                         siu->clearEventcount();
                         siu->clearDdlDeadtime();
                         siu->clearDmaDeadtime();
+                        siu->setReset(0);
                         delete siu;
                     }
                     break;
