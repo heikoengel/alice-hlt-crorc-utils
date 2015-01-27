@@ -81,6 +81,7 @@ public:
   librorc::diu *m_diu[LIBRORC_MAX_LINKS];
   librorc::siu *m_siu[LIBRORC_MAX_LINKS];
   librorc::ddl *m_ddl[LIBRORC_MAX_LINKS];
+  librorc::eventfilter *m_filter[LIBRORC_MAX_LINKS];
   uint32_t m_linkType[LIBRORC_MAX_LINKS];
   uint32_t m_nchannels;
 };

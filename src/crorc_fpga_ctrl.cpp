@@ -212,6 +212,8 @@ typedef struct {
   tControlSet gtxTxpostemph;
   tControlSet ddlReset;
   tControlSet diuSendCommand;
+  tControlSet ddlFilterMask;
+  tControlSet ddlFilterAll;
   tControlSet dmaRateLimit;
 } tRorcCmd;
 
@@ -235,35 +237,37 @@ int main(int argc, char *argv[]) {
 
   static struct option long_options[] = {
       {"help", no_argument, 0, 'h'},
-      {"fan", optional_argument, 0, 'f'},
-      {"linkmask", optional_argument, 0, 'm'},
-      {"bracketled", optional_argument, 0, 'b'},
-      {"device", required_argument, 0, 'n'},
-      {"channel", required_argument, 0, 'c'},
-      {"listrorcs", no_argument, 0, 'l'},
       {"boardreset", no_argument, &(cmd.boardReset), 1},
-      {"linkstatus", no_argument, &(cmd.linkStatus), 1},
-      {"linkspeed", optional_argument, 0, 's'},
-      {"listlinkspeeds", no_argument, 0, 'S'},
-      {"gtxreset", optional_argument, 0, 'R'},
-      {"gtxtxreset", optional_argument, 0, 'a'},
-      {"gtxrxreset", optional_argument, 0, 'e'},
-      {"gtxloopback", optional_argument, 0, 'L'},
-      {"gtxrxeqmix", optional_argument, 0, 'M'},
-      {"gtxtxdiffctrl", optional_argument, 0, 'D'},
-      {"gtxtxpreemph", optional_argument, 0, 'P'},
-      {"gtxtxpostemph", optional_argument, 0, 'O'},
-      {"gtxclearcounters", no_argument, &(cmd.gtxClearCounters), 1},
-      {"gtxstatus", no_argument, &(cmd.gtxStatus), 1},
-      {"ddlreset", optional_argument, 0, 'd'},
+      {"bracketled", optional_argument, 0, 'b'},
+      {"channel", required_argument, 0, 'c'},
       {"ddlclearcounters", no_argument, &(cmd.ddlClearCounters), 1},
+      {"ddlfilterall", optional_argument, 0, 'A'},
+      {"ddlfiltermask", optional_argument, 0, 'F'},
+      {"ddlreset", optional_argument, 0, 'd'},
       {"ddlstatus", no_argument, &(cmd.ddlStatus), 1},
-      {"diuinitremotesiu", no_argument, &(cmd.diuInitRemoteSiu), 1},
+      {"device", required_argument, 0, 'n'},
       {"diuinitremotediu", no_argument, &(cmd.diuInitRemoteDiu), 1},
+      {"diuinitremotesiu", no_argument, &(cmd.diuInitRemoteSiu), 1},
       {"diusendcmd", optional_argument, 0, 'C'},
-      {"refclkreset", no_argument, &(cmd.refclkReset), 1},
       {"dmaclearerrorflags", no_argument, &(cmd.dmaClearErrorFlags), 1},
       {"dmaratelimit", optional_argument, 0, 't'},
+      {"fan", optional_argument, 0, 'f'},
+      {"gtxclearcounters", no_argument, &(cmd.gtxClearCounters), 1},
+      {"gtxloopback", optional_argument, 0, 'L'},
+      {"gtxreset", optional_argument, 0, 'R'},
+      {"gtxrxeqmix", optional_argument, 0, 'M'},
+      {"gtxrxreset", optional_argument, 0, 'e'},
+      {"gtxstatus", no_argument, &(cmd.gtxStatus), 1},
+      {"gtxtxdiffctrl", optional_argument, 0, 'D'},
+      {"gtxtxpostemph", optional_argument, 0, 'O'},
+      {"gtxtxpreemph", optional_argument, 0, 'P'},
+      {"gtxtxreset", optional_argument, 0, 'a'},
+      {"linkmask", optional_argument, 0, 'm'},
+      {"linkspeed", optional_argument, 0, 's'},
+      {"linkstatus", no_argument, &(cmd.linkStatus), 1},
+      {"listlinkspeeds", no_argument, 0, 'S'},
+      {"listrorcs", no_argument, 0, 'l'},
+      {"refclkreset", no_argument, &(cmd.refclkReset), 1},
       {0, 0, 0, 0}};
   int nargs = sizeof(long_options) / sizeof(option);
 
@@ -271,7 +275,7 @@ int main(int argc, char *argv[]) {
   if (argc > 1) {
     while (1) {
       int opt = getopt_long(
-          argc, argv, "hf::lm::b::n:c:s::S::R::L::M::D::P::O::d::C::t::a::e::",
+          argc, argv, "hf::lm::b::n:c:s::S::R::L::M::D::P::O::d::C::t::a::e::F::A::",
           long_options, NULL);
       if (opt == -1) {
         break;
@@ -408,6 +412,15 @@ int main(int argc, char *argv[]) {
       case 't':
         // dmaratelimit
         cmd.dmaRateLimit = evalParam(optarg);
+        break;
+
+      case 'F':
+        // ddlFilterMask
+        cmd.ddlFilterMask = evalParam(optarg);
+        break;
+
+      case 'A':
+        cmd.ddlFilterAll = evalParam(optarg);
         break;
 
       case '?':
@@ -759,14 +772,52 @@ int main(int argc, char *argv[]) {
   if (cmd.dmaRateLimit.get) {
     uint32_t pcie_gen = rorc->m_sm->pcieGeneration();
     for (uint32_t i = ch_start; i <= ch_end; i++) {
-      cout << "Link" << i << " Rate Limit: "
-           << rorc->m_ch[i]->rateLimit(pcie_gen) << " Hz" << endl;
+      cout << "Link" << i
+           << " Rate Limit: " << rorc->m_ch[i]->rateLimit(pcie_gen) << " Hz"
+           << endl;
     }
-  }
-  else if (cmd.dmaRateLimit.set) {
+  } else if (cmd.dmaRateLimit.set) {
     uint32_t pcie_gen = rorc->m_sm->pcieGeneration();
     for (uint32_t i = ch_start; i <= ch_end; i++) {
       rorc->m_ch[i]->setRateLimit(cmd.dmaRateLimit.value, pcie_gen);
+    }
+  }
+
+  if (cmd.ddlFilterAll.get) {
+    for (uint32_t i = ch_start; i <= ch_end; i++) {
+      if (rorc->m_filter[i]) {
+        cout << "Link" << i
+             << " Filter-All: " << rorc->m_filter[i]->getFilterAll() << endl;
+      } else {
+        cout << "Link" << i << " has no EventFilter" << endl;
+      }
+    }
+  } else if (cmd.ddlFilterAll.set) {
+    for (uint32_t i = ch_start; i <= ch_end; i++) {
+      if (rorc->m_filter[i]) {
+        rorc->m_filter[i]->setFilterAll(cmd.ddlFilterAll.value);
+      } else {
+        cout << "Link" << i << " has no EventFilter" << endl;
+      }
+    }
+  }
+
+  if (cmd.ddlFilterMask.get) {
+    for (uint32_t i = ch_start; i <= ch_end; i++) {
+      if (rorc->m_filter[i]) {
+        cout << "Link" << i
+             << " Filter-Mask: " << rorc->m_filter[i]->getFilterMask() << endl;
+      } else {
+        cout << "Link" << i << " has no EventFilter" << endl;
+      }
+    }
+  } else if (cmd.ddlFilterMask.set) {
+    for (uint32_t i = ch_start; i <= ch_end; i++) {
+      if (rorc->m_filter[i]) {
+        rorc->m_filter[i]->setFilterMask(cmd.ddlFilterMask.value);
+      } else {
+        cout << "Link" << i << " has no EventFilter" << endl;
+      }
     }
   }
 

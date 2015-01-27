@@ -40,6 +40,7 @@ crorc::crorc(uint32_t deviceId) {
     m_diu[i] = NULL;
     m_siu[i] = NULL;
     m_ddl[i] = NULL;
+    m_filter[i] = NULL;
   }
   try {
     m_dev = new librorc::device(deviceId);
@@ -78,9 +79,13 @@ crorc::crorc(uint32_t deviceId) {
       switch (m_linkType[i]) {
       case RORC_CFG_LINK_TYPE_DIU:
         m_diu[i] = new librorc::diu(m_link[i]);
+        m_filter[i] = new librorc::eventfilter(m_link[i]);
         break;
       case RORC_CFG_LINK_TYPE_SIU:
         m_siu[i] = new librorc::siu(m_link[i]);
+        break;
+      case RORC_CFG_LINK_TYPE_VIRTUAL:
+        m_filter[i] = new librorc::eventfilter(m_link[i]);
         break;
       default:
         break;
@@ -93,6 +98,9 @@ crorc::crorc(uint32_t deviceId) {
 
 crorc::~crorc() {
   for (uint32_t i = 0; i < LIBRORC_MAX_LINKS; i++) {
+    if (m_filter[i]) {
+      delete m_filter[i];
+    }
     if (m_ddl[i]) {
       delete m_ddl[i];
     }
