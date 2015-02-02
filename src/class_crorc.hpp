@@ -69,7 +69,8 @@ public:
   void setAllGtxReset(uint32_t reset);
   void configAllGtxPlls(librorc::gtxpll_settings pllcfg);
   t_linkStatus getLinkStatus(uint32_t linkId);
-
+  bool isOpticalLink(uint32_t i);
+  const char *linkTypeDescr(uint32_t i);
 
   librorc::device *m_dev;
   librorc::bar *m_bar;

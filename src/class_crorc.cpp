@@ -181,13 +181,17 @@ void crorc::setAllQsfpReset(uint32_t reset) {
 
 void crorc::setAllGtxReset(uint32_t reset) {
   for (uint32_t i = 0; i < m_nchannels; i++) {
-    m_gtx[i]->setReset(reset);
+    if (isOpticalLink(i)) {
+      m_gtx[i]->setReset(reset);
+    }
   }
 }
 
 void crorc::configAllGtxPlls(librorc::gtxpll_settings pllcfg) {
   for (uint32_t i = 0; i < m_nchannels; i++) {
-    m_gtx[i]->drpSetPllConfig(pllcfg);
+    if (isOpticalLink(i)) {
+      m_gtx[i]->drpSetPllConfig(pllcfg);
+    }
   }
 }
 
@@ -211,11 +215,55 @@ t_linkStatus crorc::getLinkStatus(uint32_t i) {
   }
   if (m_linkType[i] == RORC_CFG_LINK_TYPE_DIU) {
     ls.ddl_linkUp = m_diu[i]->linkUp();
+    ls.ddl_linkFull = m_diu[i]->linkFull();
   } else if (m_linkType[i] == RORC_CFG_LINK_TYPE_SIU) {
     ls.ddl_linkUp = ls.gtx_linkUp;
+    ls.ddl_linkFull = m_siu[i]->linkFull();
   } else {
     ls.ddl_linkUp = true;
+    ls.ddl_linkFull = false;
   }
-  ls.ddl_linkFull = m_ddl[i]->linkFull();
   return ls;
+}
+
+bool crorc::isOpticalLink(uint32_t i) {
+  bool isOptical = false;
+  switch (m_linkType[i]) {
+  case RORC_CFG_LINK_TYPE_SIU:
+  case RORC_CFG_LINK_TYPE_DIU:
+  case RORC_CFG_LINK_TYPE_LINKTEST:
+    isOptical = true;
+    break;
+  default:
+    // RORC_CFG_LINK_TYPE_VIRTUAL
+    // RORC_CFG_LINK_TYPE_IBERT
+    isOptical = false;
+    break;
+  }
+  return isOptical;
+}
+
+const char *crorc::linkTypeDescr(uint32_t i) {
+  const char *descr;
+  switch (m_linkType[i]) {
+  case RORC_CFG_LINK_TYPE_IBERT:
+    descr = "IBERT";
+    break;
+  case RORC_CFG_LINK_TYPE_VIRTUAL:
+    descr = "RAW-COPY";
+    break;
+  case RORC_CFG_LINK_TYPE_LINKTEST:
+    descr = "LINK-TEST";
+    break;
+  case RORC_CFG_LINK_TYPE_DIU:
+    descr = "DIU";
+    break;
+  case RORC_CFG_LINK_TYPE_SIU:
+    descr = "SIU";
+    break;
+  default:
+    descr = "UNKNOWN";
+    break;
+  }
+  return descr;
 }

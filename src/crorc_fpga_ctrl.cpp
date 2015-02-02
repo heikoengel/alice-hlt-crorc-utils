@@ -93,13 +93,14 @@ void print_gtxstate(uint32_t i, librorc::gtx *gtx) {
 void print_ddlstate(uint32_t i, crorc *rorc) {
   if (rorc->m_link[i]->isDdlDomainReady()) {
     cout << "DDL" << i << " Status" << endl;
+    cout << "\tType        : " << rorc->linkTypeDescr(i) << endl;
     cout << "\tReset       : " << rorc->m_ddl[i]->getReset() << endl;
     cout << "\tIF-Enable   : " << rorc->m_ddl[i]->getEnable() << endl;
-    cout << "\tLink Full   : " << rorc->m_ddl[i]->linkFull() << endl;
     cout << "\tDMA Deadtime: " << rorc->m_ddl[i]->getDmaDeadtime() << endl;
-    cout << "\tEventcount  : " << rorc->m_ddl[i]->getEventcount() << endl;
     if (rorc->m_diu[i] != NULL) {
       cout << "\tLink Up     : " << rorc->m_diu[i]->linkUp() << endl;
+      cout << "\tLink Full   : " << rorc->m_diu[i]->linkFull() << endl;
+      cout << "\tEventcount  : " << rorc->m_diu[i]->getEventcount() << endl;
       cout << "\tDDL Deadtime: " << rorc->m_diu[i]->getDdlDeadtime() << endl;
       cout << "\tLast Command: 0x" << hex << rorc->m_diu[i]->lastDiuCommand()
            << dec << endl;
@@ -114,6 +115,8 @@ void print_ddlstate(uint32_t i, crorc *rorc) {
            << rorc->m_diu[i]->lastInterfaceStatusWord() << dec << endl;
     }
     if (rorc->m_siu[i] != NULL) {
+      cout << "\tLink Full   : " << rorc->m_siu[i]->linkFull() << endl;
+      cout << "\tEventcount  : " << rorc->m_siu[i]->getEventcount() << endl;
       cout << "\tDDL Deadtime: " << rorc->m_siu[i]->getDdlDeadtime() << endl;
       cout << "\tLast FECW   : 0x" << hex
            << rorc->m_siu[i]->lastFrontEndCommandWord() << dec << endl;
@@ -471,7 +474,7 @@ int main(int argc, char *argv[]) {
       catch (...) {
         cout << " - BAR1 access failed!" << endl;
         delete dev;
-        return 0;
+        return -1;
       }
 
       try {
@@ -481,7 +484,7 @@ int main(int argc, char *argv[]) {
         cout << " - Sysmon access failed!" << endl;
         delete bar;
         delete dev;
-        return 0;
+        return -1;
       }
 
       cout << " " << setw(10) << setfill(' ') << left
@@ -501,8 +504,8 @@ int main(int argc, char *argv[]) {
   try {
     rorc = new crorc(cmd.dev);
   } catch (...) {
-    cerr << "Failed to intialize RORC0" << endl;
-    abort();
+    cerr << "Failed to intialize RORC" << cmd.dev << endl;
+    return -1;
   }
 
   if (cmd.fan.get) {
@@ -528,7 +531,7 @@ int main(int argc, char *argv[]) {
     // TODO
   }
 
-  uint32_t ch_start, ch_end;
+  int ch_start, ch_end;
   if (cmd.ch == LIBRORC_CH_UNDEF) {
     ch_start = 0;
     ch_end = rorc->m_nchannels - 1;
@@ -537,9 +540,17 @@ int main(int argc, char *argv[]) {
     ch_end = cmd.ch;
   }
 
+  int gtx_start = ch_start;
+  int gtx_end = -1;
+  for (int i = ch_start; i <= ch_end; i++) {
+    if (rorc->isOpticalLink(i)) {
+      gtx_end = i;
+    }
+  }
+
   if (cmd.linkspeed.get) {
     librorc::refclkopts clkopts = rorc->m_refclk->getCurrentOpts(0);
-    for (uint32_t i = ch_start; i <= ch_end; i++) {
+    for (int i = gtx_start; i <= gtx_end; i++) {
       librorc::gtxpll_settings pllsts = rorc->m_gtx[i]->drpGetPllConfig();
       pllsts.refclk = rorc->m_refclk->getFout(clkopts);
       cout << "Ch" << i << " ";
@@ -587,33 +598,33 @@ int main(int argc, char *argv[]) {
   }
 
   if (cmd.linkStatus) {
-      for (uint32_t i = ch_start; i <= ch_end; i++) {
+      for (int32_t i = gtx_start; i <= gtx_end; i++) {
           printLinkStatus(rorc->getLinkStatus(i), i);
       }
   }
 
   if (cmd.gtxReset.get) {
-    for (uint32_t i = ch_start; i <= ch_end; i++) {
+    for (int32_t i = gtx_start; i <= gtx_end; i++) {
       uint32_t val = rorc->m_gtx[i]->getReset();
       cout << "Ch" << i << "\tGTX Full Reset: " << (val & 1) << endl
            << "\tGTX RX Reset: " << ((val >> 1) & 1) << endl
            << "\tGTX TX Reset: " << ((val >> 2) & 1) << endl;
     }
   } else if (cmd.gtxReset.set) {
-    for (uint32_t i = ch_start; i <= ch_end; i++) {
+    for (int32_t i = gtx_start; i <= gtx_end; i++) {
       // NOTE: this overrides any RxReset or RxReset value
       rorc->m_gtx[i]->setReset(cmd.gtxReset.value & 1);
     }
   }
 
   if (cmd.gtxRxReset.get) {
-      for (uint32_t i = ch_start; i <= ch_end; i++) {
+      for (int32_t i = gtx_start; i <= gtx_end; i++) {
           cout << "Ch" << i
               << " GTX RX Reset: " << ((rorc->m_gtx[i]->getReset() >> 1) & 1)
               << endl;
       }
   } else if (cmd.gtxRxReset.set) {
-      for (uint32_t i = ch_start; i <= ch_end; i++) {
+      for (int32_t i = gtx_start; i <= gtx_end; i++) {
           uint32_t val = rorc->m_gtx[i]->getReset();
           val &= ~(1<<1); // clear RX Reset bit
           val |= ((cmd.gtxRxReset.value & 1) << 1);
@@ -622,13 +633,13 @@ int main(int argc, char *argv[]) {
   }
 
   if (cmd.gtxTxReset.get) {
-      for (uint32_t i = ch_start; i <= ch_end; i++) {
+      for (int32_t i = gtx_start; i <= gtx_end; i++) {
           cout << "Ch" << i
               << " GTX TX Reset: " << ((rorc->m_gtx[i]->getReset() >> 2) & 1)
               << endl;
       }
   } else if (cmd.gtxTxReset.set) {
-      for (uint32_t i = ch_start; i <= ch_end; i++) {
+      for (int32_t i = gtx_start; i <= gtx_end; i++) {
           uint32_t val = rorc->m_gtx[i]->getReset();
           val &= ~(1<<2); // clear TX Reset bit
           val |= ((cmd.gtxTxReset.value & 1) << 2);
@@ -637,93 +648,105 @@ int main(int argc, char *argv[]) {
   }
 
   if (cmd.gtxLoopback.get) {
-    for (uint32_t i = ch_start; i <= ch_end; i++) {
+    for (int32_t i = gtx_start; i <= gtx_end; i++) {
       cout << "Ch" << i << " GTX Loopback: " << rorc->m_gtx[i]->getLoopback()
            << endl;
     }
   } else if (cmd.gtxLoopback.set) {
-    for (uint32_t i = ch_start; i <= ch_end; i++) {
+    for (int32_t i = gtx_start; i <= gtx_end; i++) {
       rorc->m_gtx[i]->setLoopback(cmd.gtxLoopback.value);
     }
   }
 
   if (cmd.gtxRxeqmix.get) {
-    for (uint32_t i = ch_start; i <= ch_end; i++) {
+    for (int32_t i = gtx_start; i <= gtx_end; i++) {
       cout << "Ch" << i << " GTX RxEqMix: " << rorc->m_gtx[i]->getRxEqMix()
            << endl;
     }
   } else if (cmd.gtxRxeqmix.set) {
-    for (uint32_t i = ch_start; i <= ch_end; i++) {
+    for (int32_t i = gtx_start; i <= gtx_end; i++) {
       rorc->m_gtx[i]->setRxEqMix(cmd.gtxRxeqmix.value);
     }
   }
 
+  if (cmd.gtxTxdiffctrl.get) {
+    for (int32_t i = gtx_start; i <= gtx_end; i++) {
+      cout << "Ch" << i << " GTX TxDiffCtrl: " << rorc->m_gtx[i]->getTxDiffCtrl()
+           << endl;
+    }
+  } else if (cmd.gtxTxdiffctrl.set) {
+    for (int32_t i = gtx_start; i <= gtx_end; i++) {
+      rorc->m_gtx[i]->setTxDiffCtrl(cmd.gtxTxdiffctrl.value);
+    }
+  }
+
   if (cmd.gtxTxpreemph.get) {
-    for (uint32_t i = ch_start; i <= ch_end; i++) {
+    for (int32_t i = gtx_start; i <= gtx_end; i++) {
       cout << "Ch" << i << " GTX TxPreEmph: " << rorc->m_gtx[i]->getTxPreEmph()
            << endl;
     }
   } else if (cmd.gtxTxpreemph.set) {
-    for (uint32_t i = ch_start; i <= ch_end; i++) {
+    for (int32_t i = gtx_start; i <= gtx_end; i++) {
       rorc->m_gtx[i]->setTxPreEmph(cmd.gtxTxpreemph.value);
     }
   }
 
   if (cmd.gtxTxpostemph.get) {
-    for (uint32_t i = ch_start; i <= ch_end; i++) {
+    for (int32_t i = gtx_start; i <= gtx_end; i++) {
       cout << "Ch" << i
            << " GTX TxPostEmph: " << rorc->m_gtx[i]->getTxPostEmph() << endl;
     }
   } else if (cmd.gtxTxpostemph.set) {
-    for (uint32_t i = ch_start; i <= ch_end; i++) {
+    for (int32_t i = gtx_start; i <= gtx_end; i++) {
       rorc->m_gtx[i]->setTxPostEmph(cmd.gtxTxpostemph.value);
     }
   }
 
   if (cmd.gtxClearCounters) {
-    for (uint32_t i = ch_start; i <= ch_end; i++) {
+    for (int32_t i = gtx_start; i <= gtx_end; i++) {
       rorc->m_gtx[i]->clearErrorCounters();
     }
   }
 
   if (cmd.gtxStatus){
-    for (uint32_t i = ch_start; i <= ch_end; i++) {
+    for (int32_t i = gtx_start; i <= gtx_end; i++) {
       print_gtxstate(i, rorc->m_gtx[i]);
     }
   }
 
   if (cmd.ddlReset.get) {
-    for (uint32_t i = ch_start; i <= ch_end; i++) {
+    for (int32_t i = ch_start; i <= ch_end; i++) {
       cout << "Ch" << i << "DDL Reset: " << rorc->m_ddl[i]->getReset() << endl;
     }
   } else if (cmd.ddlReset.set) {
-    for (uint32_t i = ch_start; i <= ch_end; i++) {
+    for (int32_t i = ch_start; i <= ch_end; i++) {
       rorc->m_ddl[i]->setReset(cmd.ddlReset.value);
     }
   }
 
   if (cmd.ddlClearCounters) {
-    for (uint32_t i = ch_start; i <= ch_end; i++) {
+    for (int32_t i = ch_start; i <= ch_end; i++) {
       if (rorc->m_diu[i] != NULL) {
         rorc->m_diu[i]->clearAllLastStatusWords();
         rorc->m_diu[i]->clearDdlDeadtime();
+        rorc->m_diu[i]->clearEventcount();
       } else if (rorc->m_siu[i] != NULL) {
         rorc->m_siu[i]->clearLastFrontEndCommandWord();
         rorc->m_siu[i]->clearDdlDeadtime();
+        rorc->m_siu[i]->clearEventcount();
       }
-      rorc->m_ddl[i]->clearEventcount();
       rorc->m_ddl[i]->clearDmaDeadtime();
     }
   }
 
   if (cmd.ddlStatus) {
-    for (uint32_t i = ch_start; i <= ch_end; i++) {
+    for (int32_t i = ch_start; i <= ch_end; i++) {
       print_ddlstate(i, rorc);
     }
   }
 
   if (cmd.diuInitRemoteDiu) {
-    for (uint32_t i = ch_start; i <= ch_end; i++) {
+    for (int32_t i = ch_start; i <= ch_end; i++) {
       if (rorc->m_diu[i] != NULL) {
         if (rorc->m_diu[i]->prepareForDiuData()) {
           cout << "DIU" << i << " Failed to init remote DIU" << endl;
@@ -736,7 +759,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (cmd.diuInitRemoteSiu) {
-    for (uint32_t i = ch_start; i <= ch_end; i++) {
+    for (int32_t i = ch_start; i <= ch_end; i++) {
       if (rorc->m_diu[i] != NULL) {
         if (rorc->m_diu[i]->prepareForSiuData()) {
           cout << "DIU" << i << " Failed to init remote SIU" << endl;
@@ -750,7 +773,7 @@ int main(int argc, char *argv[]) {
 
   // note: cmd.diuSendCommand.get is not handled here
   if (cmd.diuSendCommand.set) {
-    for (uint32_t i = ch_start; i <= ch_end; i++) {
+    for (int32_t i = ch_start; i <= ch_end; i++) {
       if (rorc->m_diu[i] != NULL) {
         rorc->m_diu[i]->sendCommand(cmd.diuSendCommand.value);
       } else {
@@ -764,27 +787,27 @@ int main(int argc, char *argv[]) {
   }
 
   if (cmd.dmaClearErrorFlags) {
-    for (uint32_t i = ch_start; i <= ch_end; i++) {
+    for (int32_t i = ch_start; i <= ch_end; i++) {
       rorc->m_ch[i]->readAndClearPtrStallFlags();
     }
   }
 
   if (cmd.dmaRateLimit.get) {
     uint32_t pcie_gen = rorc->m_sm->pcieGeneration();
-    for (uint32_t i = ch_start; i <= ch_end; i++) {
+    for (int32_t i = ch_start; i <= ch_end; i++) {
       cout << "Link" << i
            << " Rate Limit: " << rorc->m_ch[i]->rateLimit(pcie_gen) << " Hz"
            << endl;
     }
   } else if (cmd.dmaRateLimit.set) {
     uint32_t pcie_gen = rorc->m_sm->pcieGeneration();
-    for (uint32_t i = ch_start; i <= ch_end; i++) {
+    for (int32_t i = ch_start; i <= ch_end; i++) {
       rorc->m_ch[i]->setRateLimit(cmd.dmaRateLimit.value, pcie_gen);
     }
   }
 
   if (cmd.ddlFilterAll.get) {
-    for (uint32_t i = ch_start; i <= ch_end; i++) {
+    for (int32_t i = ch_start; i <= ch_end; i++) {
       if (rorc->m_filter[i]) {
         cout << "Link" << i
              << " Filter-All: " << rorc->m_filter[i]->getFilterAll() << endl;
@@ -793,7 +816,7 @@ int main(int argc, char *argv[]) {
       }
     }
   } else if (cmd.ddlFilterAll.set) {
-    for (uint32_t i = ch_start; i <= ch_end; i++) {
+    for (int32_t i = ch_start; i <= ch_end; i++) {
       if (rorc->m_filter[i]) {
         rorc->m_filter[i]->setFilterAll(cmd.ddlFilterAll.value);
       } else {
@@ -803,7 +826,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (cmd.ddlFilterMask.get) {
-    for (uint32_t i = ch_start; i <= ch_end; i++) {
+    for (int32_t i = ch_start; i <= ch_end; i++) {
       if (rorc->m_filter[i]) {
         cout << "Link" << i
              << " Filter-Mask: " << rorc->m_filter[i]->getFilterMask() << endl;
@@ -812,7 +835,7 @@ int main(int argc, char *argv[]) {
       }
     }
   } else if (cmd.ddlFilterMask.set) {
-    for (uint32_t i = ch_start; i <= ch_end; i++) {
+    for (int32_t i = ch_start; i <= ch_end; i++) {
       if (rorc->m_filter[i]) {
         rorc->m_filter[i]->setFilterMask(cmd.ddlFilterMask.value);
       } else {
