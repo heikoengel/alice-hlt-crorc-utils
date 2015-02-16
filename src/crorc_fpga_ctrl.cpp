@@ -757,13 +757,24 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  // note: cmd.diuSendCommand.get is not handled here
-  if (cmd.diuSendCommand.set) {
+  if (cmd.diuSendCommand.get) {
+    for (int32_t i = ch_start; i <= ch_end; i++) {
+      if (rorc->m_diu[i] != NULL) {
+        cout << "Link" << i << " Last DIU command: 0x"
+             << setw(8) << setfill('0')
+             << rorc->m_diu[i]->lastDiuCommand() << endl;
+      } else {
+        cout << "Link" << i << " has no local DIU, no last command"
+             << endl;
+      }
+    }
+  } else if (cmd.diuSendCommand.set) {
     for (int32_t i = ch_start; i <= ch_end; i++) {
       if (rorc->m_diu[i] != NULL) {
         rorc->m_diu[i]->sendCommand(cmd.diuSendCommand.value);
       } else {
-        cout << "Link" << i << " has no local DIU, cannot send command" << endl;
+        cout << "Link" << i << " has no local DIU, cannot send command"
+             << endl;
       }
     }
   }
