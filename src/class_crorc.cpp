@@ -161,8 +161,6 @@ uint32_t crorc::getLinkmask() { return m_sm->getLinkmask(); }
 
 void crorc::setLinkmask(uint32_t mask) { m_sm->setLinkmask(mask); }
 
-void crorc::doBoardReset(){};
-
 void crorc::setAllQsfpReset(uint32_t reset) {
   m_sm->qsfpSetReset(0, reset);
   m_sm->qsfpSetReset(1, reset);

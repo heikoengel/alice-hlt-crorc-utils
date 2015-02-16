@@ -175,7 +175,6 @@ typedef struct {
 typedef struct {
   uint32_t dev;
   uint32_t ch;
-  int boardReset;
   bool listRorcs;
   bool listLinkSpeeds;
   int linkStatus;
@@ -226,7 +225,6 @@ int main(int argc, char *argv[]) {
 
   static struct option long_options[] = {
       {"help", no_argument, 0, 'h'},
-      {"boardreset", no_argument, &(cmd.boardReset), 1},
       {"bracketled", optional_argument, 0, 'b'},
       {"channel", required_argument, 0, 'c'},
       {"ddlclearcounters", no_argument, &(cmd.ddlClearCounters), 1},
@@ -510,11 +508,6 @@ int main(int argc, char *argv[]) {
     cout << "Linkmask 0x" << hex << rorc->getLinkmask() << dec << endl;
   } else if (cmd.linkmask.set) {
     rorc->setLinkmask(cmd.linkmask.value);
-  }
-
-  if (cmd.boardReset) {
-    rorc->doBoardReset();
-    // TODO
   }
 
   int ch_start, ch_end;

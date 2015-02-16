@@ -53,7 +53,6 @@ public:
   void setLedState(uint32_t state);
   uint32_t getLinkmask();
   void setLinkmask(uint32_t mask);
-  void doBoardReset();
   void setAllQsfpReset(uint32_t reset);
   void setAllGtxReset(uint32_t reset);
   void configAllGtxPlls(librorc::gtxpll_settings pllcfg);
