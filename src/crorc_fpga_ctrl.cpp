@@ -106,11 +106,11 @@ void print_ddlstate(uint32_t i, crorc *rorc) {
       cout << "\tDDL Deadtime: " << rorc->m_siu[i]->getDdlDeadtime() << endl;
       cout << "\tLast FECW   : 0x" << hex
            << rorc->m_siu[i]->lastFrontEndCommandWord() << dec << endl;
-      cout << "IFFIFOEmpty   : " << rorc->m_siu[i]->isInterfaceFifoEmpty()
+      cout << "\tIFFIFOEmpty   : " << rorc->m_siu[i]->isInterfaceFifoEmpty()
            << endl;
-      cout << "IFFIFOFull    : " << rorc->m_siu[i]->isInterfaceFifoFull()
+      cout << "\tIFFIFOFull    : " << rorc->m_siu[i]->isInterfaceFifoFull()
            << endl;
-      cout << "SourceEmpty   : " << rorc->m_siu[i]->isSourceEmpty() << endl;
+      cout << "\tSourceEmpty   : " << rorc->m_siu[i]->isSourceEmpty() << endl;
     }
   } else {
     cout << "DDL" << i << " Clock DOWN!" << endl;
@@ -161,8 +161,8 @@ void printLinkStatus(t_linkStatus ls, uint32_t linkId) {
         if (ls.ddl_linkFull) {
             cout << ", DDL_FULL";
         }
+        cout << endl;
     }
-    cout << endl;
 }
 
 
@@ -198,6 +198,7 @@ typedef struct {
   tControlSet gtxTxdiffctrl;
   tControlSet gtxTxpreemph;
   tControlSet gtxTxpostemph;
+  tControlSet gtxRxLosFsm;
   tControlSet ddlReset;
   tControlSet diuSendCommand;
   tControlSet ddlFilterMask;
@@ -249,6 +250,7 @@ int main(int argc, char *argv[]) {
       {"gtxtxpostemph", optional_argument, 0, 'O'},
       {"gtxtxpreemph", optional_argument, 0, 'P'},
       {"gtxtxreset", optional_argument, 0, 'a'},
+      {"gtxrxlosfsm", optional_argument, 0, 'o'},
       {"linkmask", optional_argument, 0, 'm'},
       {"linkspeed", optional_argument, 0, 's'},
       {"linkstatus", no_argument, &(cmd.linkStatus), 1},
@@ -262,7 +264,7 @@ int main(int argc, char *argv[]) {
   if (argc > 1) {
     while (1) {
       int opt = getopt_long(
-          argc, argv, "hf::lm::b::n:c:s::S::R::L::M::D::P::O::d::C::t::a::e::F::A::",
+          argc, argv, "hf::lm::b::n:c:s::S::R::L::M::D::P::O::d::C::t::a::e::F::A::o::",
           long_options, NULL);
       if (opt == -1) {
         break;
@@ -384,6 +386,11 @@ int main(int argc, char *argv[]) {
       case 'O':
         // gtxtxpostemph
         cmd.gtxTxpostemph = evalParam(optarg);
+        break;
+
+      case 'o':
+        // gtxrxlosfsm
+        cmd.gtxRxLosFsm = evalParam(optarg);
         break;
 
       case 'd':
@@ -678,6 +685,26 @@ int main(int argc, char *argv[]) {
   } else if (cmd.gtxTxpostemph.set) {
     for (int32_t i = gtx_start; i <= gtx_end; i++) {
       rorc->m_gtx[i]->setTxPostEmph(cmd.gtxTxpostemph.value);
+    }
+  }
+
+  if (cmd.gtxRxLosFsm.get) {
+    for (int32_t i = gtx_start; i <= gtx_end; i++) {
+      uint16_t state = ((rorc->m_gtx[i]->drpRead(0x04) >> 15) & 1);
+      cout << "Ch" << i <<" RX LossOfSync FSM: ";
+      if (state) {
+        cout << "ON (1)";
+      } else {
+        cout << "OFF (0)";
+      }
+      cout << endl;
+    }
+  } else if (cmd.gtxRxLosFsm.set) {
+    for (int32_t i = gtx_start; i <= gtx_end; i++) {
+      uint16_t state = rorc->m_gtx[i]->drpRead(0x04);
+      state &= ~(1<<15);
+      state |= ((cmd.gtxRxLosFsm.value & 1) << 15);
+      rorc->m_gtx[i]->drpWrite(0x04, state);
     }
   }
 
