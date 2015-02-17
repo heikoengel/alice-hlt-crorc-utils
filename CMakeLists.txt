@@ -7,14 +7,22 @@ SET(CMAKE_INSTALL_PREFIX /usr)
 MESSAGE( STATUS "Install directory   = ${CMAKE_INSTALL_PREFIX}")
 
 # Find librorc.so
-FIND_LIBRARY(LIBRORC NAME rorc PATHS
-  /mnt/data/projects/alice-hlt-librorc/build/release/src)
+FIND_LIBRARY( LIBRORC NAMES rorc )
+FIND_PATH( LIBRORC_INCLUDE NAMES librorc.h )
+
 IF(LIBRORC)
   MESSAGE(STATUS "Found librorc: ${LIBRORC}")
+  IF(LIBRORC_INCLUDE)
+    MESSAGE(STATUS "Found librorc include in ${LIBRORC_INCLUDE}")
+  ELSE(LIBRORC_INCLUDE)
+    MESSAGE(ERROR "Could not find librorc includes")
+  ENDIF(LIBRORC_INCLUDE)
 ELSE(LIBRORC)
-  MESSAGE(FATAL_ERROR "Could not locate librorc")
+  ADD_DEFINITIONS(-DNOLIBRORC)
+  MESSAGE(STATUS "Could not find librorc library, building without C-RORC support")
 ENDIF(LIBRORC)
-INCLUDE_DIRECTORIES(/mnt/data/projects/alice-hlt-librorc/include)
+
+INCLUDE_DIRECTORIES(${LIBRORC_INCLUDE})
 
 # add actual code
 ADD_SUBDIRECTORY(src)
