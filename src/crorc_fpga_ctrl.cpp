@@ -25,6 +25,11 @@
 
 using namespace ::std;
 
+#define DATASOURCE_DDL 0
+#define DATASOURCE_DDR 1
+#define DATASOURCE_PG 2
+#define DATASOURCE_PCI 4
+
 void list_options(const struct option *long_options, int nargs) {
   cout << "Available arguments:" << endl;
   for (int i = 0; i < nargs; i++) {
@@ -204,6 +209,7 @@ typedef struct {
   tControlSet ddlFilterMask;
   tControlSet ddlFilterAll;
   tControlSet dmaRateLimit;
+  tControlSet dataSource;
 } tRorcCmd;
 
 tControlSet evalParam(char *param) {
@@ -228,6 +234,7 @@ int main(int argc, char *argv[]) {
       {"help", no_argument, 0, 'h'},
       {"bracketled", optional_argument, 0, 'b'},
       {"channel", required_argument, 0, 'c'},
+      {"datasource", optional_argument, 0, 'T'},
       {"ddlclearcounters", no_argument, &(cmd.ddlClearCounters), 1},
       {"ddlfilterall", optional_argument, 0, 'A'},
       {"ddlfiltermask", optional_argument, 0, 'F'},
@@ -264,7 +271,7 @@ int main(int argc, char *argv[]) {
   if (argc > 1) {
     while (1) {
       int opt = getopt_long(
-          argc, argv, "hf::lm::b::n:c:s::S::R::L::M::D::P::O::d::C::t::a::e::F::A::o::",
+          argc, argv, "hf::lm::b::n:c:s::S::R::L::M::D::P::O::d::C::t::a::e::F::A::o::T::",
           long_options, NULL);
       if (opt == -1) {
         break;
@@ -331,6 +338,31 @@ int main(int argc, char *argv[]) {
       case 'c':
         // channel
         cmd.ch = strtol(optarg, NULL, 0);
+        break;
+
+      case 'T':
+        // datasource
+        if (optarg) {
+          if (strcmp(optarg, "ddl") == 0) {
+            cmd.dataSource.value = DATASOURCE_DDL;
+            cmd.dataSource.set = true;
+          } else if (strcmp(optarg, "ddr") == 0) {
+            cmd.dataSource.value = DATASOURCE_DDR;
+            cmd.dataSource.set = true;
+          } else if (strcmp(optarg, "pg") == 0) {
+            cmd.dataSource.value = DATASOURCE_PG;
+            cmd.dataSource.set = true;
+          } else if (strcmp(optarg, "pci") == 0) {
+            cmd.dataSource.value = DATASOURCE_PCI;
+            cmd.dataSource.set = true;
+          } else {
+            cout << "Invalid argument to 'datasource', allowed are 'ddl', "
+                    "'ddr', 'pg' and 'pci'." << endl;
+            return -1;
+          }
+        } else {
+          cmd.dataSource.get = true;
+        }
         break;
 
       case 's':
@@ -589,6 +621,7 @@ int main(int argc, char *argv[]) {
       }
   }
 
+
   if (cmd.gtxReset.get) {
     for (int32_t i = gtx_start; i <= gtx_end; i++) {
       uint32_t val = rorc->m_gtx[i]->getReset();
@@ -717,6 +750,93 @@ int main(int argc, char *argv[]) {
   if (cmd.gtxStatus){
     for (int32_t i = gtx_start; i <= gtx_end; i++) {
       print_gtxstate(i, rorc->m_gtx[i]);
+    }
+  }
+
+  if (cmd.dataSource.get) {
+    for (int32_t i = ch_start; i <= ch_end; i++) {
+      const char *dataSourceDescr;
+      uint32_t mux = ((rorc->m_link[i]->ddlReg(RORC_REG_DDL_CTRL)>>16) & 3);
+      switch (rorc->m_linkType[i]) {
+      case RORC_CFG_LINK_TYPE_VIRTUAL:
+        dataSourceDescr = "RAW";
+        break;
+      case RORC_CFG_LINK_TYPE_DIU:
+        switch (mux) {
+        case 0:
+          dataSourceDescr = "DDL";
+          break;
+        case 1:
+          dataSourceDescr = "DDR";
+          break;
+        case 2:
+          dataSourceDescr = "PG";
+          break;
+        default:
+          dataSourceDescr = "UNKNOWN!";
+          break;
+        }
+        break;
+      case RORC_CFG_LINK_TYPE_SIU:
+        switch (mux) {
+        case 0:
+        case 1:
+          dataSourceDescr = "DDL";
+          break;
+        case 2:
+        case 3:
+          dataSourceDescr = "PG";
+          break;
+        default:
+          dataSourceDescr = "UNKNOWN!";
+          break;
+        }
+        break;
+      default:
+        dataSourceDescr = "UNKNOWN!";
+        break;
+      }
+
+      cout << "Ch" << i << " Datasource: " << dataSourceDescr << endl;
+    }
+  } else if (cmd.dataSource.set) {
+    for (int32_t i = ch_start; i <= ch_end; i++) {
+      uint32_t mux = ((rorc->m_link[i]->ddlReg(RORC_REG_DDL_CTRL) >> 16) & 3);
+      switch (rorc->m_linkType[i]) {
+      case RORC_CFG_LINK_TYPE_VIRTUAL:
+        cout << "Ch" << i << " cannot change datasource of a Raw-Copy channel."
+             << endl;
+        break;
+      case RORC_CFG_LINK_TYPE_DIU:
+        switch (cmd.dataSource.value) {
+        case DATASOURCE_DDL:
+          rorc->m_link[i]->setDefaultDataSource();
+          break;
+        case DATASOURCE_DDR:
+          rorc->m_link[i]->setDataSourceDdr3DataReplay();
+          break;
+        case DATASOURCE_PG:
+          rorc->m_link[i]->setDataSourcePatternGenerator();
+          break;
+        default:
+          cout << "Ch" << i << " invalid data source" << endl;
+          break;
+        }
+        break;
+      case RORC_CFG_LINK_TYPE_SIU:
+        switch (cmd.dataSource.value) {
+        case DATASOURCE_PCI:
+          rorc->m_link[i]->setDefaultDataSource();
+          break;
+        case DATASOURCE_PG:
+          rorc->m_link[i]->setDataSourcePatternGenerator();
+          break;
+        default:
+          cout << "Ch" << i << " invalid data source" << endl;
+          break;
+        }
+        break;
+      }
     }
   }
 
