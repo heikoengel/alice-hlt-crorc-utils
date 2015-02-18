@@ -1,5 +1,6 @@
 SET( UTIL_LIST
   crorc_ddr3ctrl
+  crorc_qsfp_ctrl
   crorc_flash
   crorc_i2c
   crorc_reset
