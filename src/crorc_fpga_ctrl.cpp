@@ -68,7 +68,7 @@ void print_gtxstate(uint32_t i, librorc::gtx *gtx) {
        << "\tTxPreEmph    : " << gtx->getTxPreEmph() << endl
        << "\tTxPostEmph   : " << gtx->getTxPostEmph() << endl
        << "\tTxEqMix      : " << gtx->getRxEqMix() << endl
-       << "\tDfeEye       : " << gtx->dfeEye() << endl;
+       << "\tRxDfeEye     : " << gtx->dfeEye() << " mV" << endl;
   if (gtx->isDomainReady()) {
     cout << "\tDomain       : up" << endl;
     cout << "\tLink Up      : " << gtx->isLinkUp() << endl;
@@ -170,6 +170,14 @@ void printLinkStatus(t_linkStatus ls, uint32_t linkId) {
     }
 }
 
+void printMetric (uint32_t ch, const char *descr, uint32_t value, const char* unit = "") {
+    cout << "Ch" << ch << " " << descr << ": " << value << unit << endl;
+}
+
+void printMetric (uint32_t ch, const char *descr, const char* value, const char* unit = "") {
+    cout << "Ch" << ch << " " << descr << ": " << value << unit << endl;
+}
+
 
 typedef struct {
   bool set;
@@ -192,6 +200,8 @@ typedef struct {
   int diuInitRemoteSiu;
   int dmaClearErrorFlags;
   tControlSet fan;
+  tControlSet flowControl;
+  tControlSet channelActive;
   tControlSet led;
   tControlSet linkmask;
   tControlSet linkspeed;
@@ -234,6 +244,7 @@ int main(int argc, char *argv[]) {
       {"help", no_argument, 0, 'h'},
       {"bracketled", optional_argument, 0, 'b'},
       {"channel", required_argument, 0, 'c'},
+      {"channelactive", optional_argument, 0, 'E'},
       {"datasource", optional_argument, 0, 'T'},
       {"ddlclearcounters", no_argument, &(cmd.ddlClearCounters), 1},
       {"ddlfilterall", optional_argument, 0, 'A'},
@@ -247,17 +258,18 @@ int main(int argc, char *argv[]) {
       {"dmaclearerrorflags", no_argument, &(cmd.dmaClearErrorFlags), 1},
       {"dmaratelimit", optional_argument, 0, 't'},
       {"fan", optional_argument, 0, 'f'},
+      {"flowcontrol", optional_argument, 0, 'B'},
       {"gtxclearcounters", no_argument, &(cmd.gtxClearCounters), 1},
       {"gtxloopback", optional_argument, 0, 'L'},
       {"gtxreset", optional_argument, 0, 'R'},
       {"gtxrxeqmix", optional_argument, 0, 'M'},
+      {"gtxrxlosfsm", optional_argument, 0, 'o'},
       {"gtxrxreset", optional_argument, 0, 'e'},
       {"gtxstatus", no_argument, &(cmd.gtxStatus), 1},
       {"gtxtxdiffctrl", optional_argument, 0, 'D'},
       {"gtxtxpostemph", optional_argument, 0, 'O'},
       {"gtxtxpreemph", optional_argument, 0, 'P'},
       {"gtxtxreset", optional_argument, 0, 'a'},
-      {"gtxrxlosfsm", optional_argument, 0, 'o'},
       {"linkmask", optional_argument, 0, 'm'},
       {"linkspeed", optional_argument, 0, 's'},
       {"linkstatus", no_argument, &(cmd.linkStatus), 1},
@@ -267,12 +279,30 @@ int main(int argc, char *argv[]) {
       {0, 0, 0, 0}};
   int nargs = sizeof(long_options) / sizeof(option);
 
+  // generate optstring for getopt_long()
+  string optstring = "";
+  for (int i = 0; i < nargs; i++) {
+    if (long_options[i].flag == 0) {
+      optstring += long_options[i].val;
+    }
+    switch (long_options[i].has_arg) {
+    case required_argument:
+      optstring += ":";
+      break;
+    case optional_argument:
+      optstring += "::";
+      break;
+    default:
+      break;
+    }
+  }
+
+  cout << optstring << endl;
+
   /** Parse command line arguments **/
   if (argc > 1) {
     while (1) {
-      int opt = getopt_long(
-          argc, argv, "hf::lm::b::n:c:s::S::R::L::M::D::P::O::d::C::t::a::e::F::A::o::T::",
-          long_options, NULL);
+      int opt = getopt_long(argc, argv, optstring.c_str(), long_options, NULL);
       if (opt == -1) {
         break;
       }
@@ -384,6 +414,15 @@ int main(int argc, char *argv[]) {
         // gtxreset
         cmd.gtxReset = evalParam(optarg);
         break;
+
+      case 'B':
+        // flowcontrol
+        cmd.flowControl = evalParam(optarg);
+        break;
+
+      case 'E':
+        // channelactive
+        cmd.channelActive = evalParam(optarg);
 
       case 'a':
         // gtxtxreset
@@ -615,192 +654,106 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  if (cmd.linkStatus) {
-      for (int32_t i = gtx_start; i <= gtx_end; i++) {
-          printLinkStatus(rorc->getLinkStatus(i), i);
-      }
+  if (cmd.refclkReset) {
+    rorc->m_refclk->reset();
   }
 
+  // iterate over all or selectedGTX instances
+  for (int32_t i = gtx_start; i <= gtx_end; i++) {
 
-  if (cmd.gtxReset.get) {
-    for (int32_t i = gtx_start; i <= gtx_end; i++) {
+    if (cmd.linkStatus) {
+      printLinkStatus(rorc->getLinkStatus(i), i);
+    }
+
+    if (cmd.gtxReset.get) {
       uint32_t val = rorc->m_gtx[i]->getReset();
       cout << "Ch" << i << "\tGTX Full Reset: " << (val & 1) << endl
            << "\tGTX RX Reset: " << ((val >> 1) & 1) << endl
            << "\tGTX TX Reset: " << ((val >> 2) & 1) << endl;
-    }
-  } else if (cmd.gtxReset.set) {
-    for (int32_t i = gtx_start; i <= gtx_end; i++) {
+    } else if (cmd.gtxReset.set) {
       // NOTE: this overrides any RxReset or RxReset value
       rorc->m_gtx[i]->setReset(cmd.gtxReset.value & 1);
     }
-  }
 
-  if (cmd.gtxRxReset.get) {
-      for (int32_t i = gtx_start; i <= gtx_end; i++) {
-          cout << "Ch" << i
-              << " GTX RX Reset: " << ((rorc->m_gtx[i]->getReset() >> 1) & 1)
-              << endl;
-      }
-  } else if (cmd.gtxRxReset.set) {
-      for (int32_t i = gtx_start; i <= gtx_end; i++) {
-          uint32_t val = rorc->m_gtx[i]->getReset();
-          val &= ~(1<<1); // clear RX Reset bit
-          val |= ((cmd.gtxRxReset.value & 1) << 1);
-          rorc->m_gtx[i]->setReset(val);
-      }
-  }
-
-  if (cmd.gtxTxReset.get) {
-      for (int32_t i = gtx_start; i <= gtx_end; i++) {
-          cout << "Ch" << i
-              << " GTX TX Reset: " << ((rorc->m_gtx[i]->getReset() >> 2) & 1)
-              << endl;
-      }
-  } else if (cmd.gtxTxReset.set) {
-      for (int32_t i = gtx_start; i <= gtx_end; i++) {
-          uint32_t val = rorc->m_gtx[i]->getReset();
-          val &= ~(1<<2); // clear TX Reset bit
-          val |= ((cmd.gtxTxReset.value & 1) << 2);
-          rorc->m_gtx[i]->setReset(val);
-      }
-  }
-
-  if (cmd.gtxLoopback.get) {
-    for (int32_t i = gtx_start; i <= gtx_end; i++) {
-      cout << "Ch" << i << " GTX Loopback: " << rorc->m_gtx[i]->getLoopback()
-           << endl;
+    if (cmd.gtxRxReset.get) {
+      printMetric(i, "GTX RX Reset", ((rorc->m_gtx[i]->getReset() >> 1) & 1));
+    } else if (cmd.gtxRxReset.set) {
+      uint32_t val = rorc->m_gtx[i]->getReset();
+      val &= ~(1 << 1); // clear RX Reset bit
+      val |= ((cmd.gtxRxReset.value & 1) << 1);
+      rorc->m_gtx[i]->setReset(val);
     }
-  } else if (cmd.gtxLoopback.set) {
-    for (int32_t i = gtx_start; i <= gtx_end; i++) {
+
+    if (cmd.gtxTxReset.get) {
+      printMetric(i, "GTX TX Reset", ((rorc->m_gtx[i]->getReset() >> 2) & 1));
+    } else if (cmd.gtxTxReset.set) {
+      uint32_t val = rorc->m_gtx[i]->getReset();
+      val &= ~(1 << 2); // clear TX Reset bit
+      val |= ((cmd.gtxTxReset.value & 1) << 2);
+      rorc->m_gtx[i]->setReset(val);
+    }
+
+    if (cmd.gtxLoopback.get) {
+        printMetric(i, "GTX Loopback", rorc->m_gtx[i]->getLoopback());
+    } else if (cmd.gtxLoopback.set) {
       rorc->m_gtx[i]->setLoopback(cmd.gtxLoopback.value);
     }
-  }
 
-  if (cmd.gtxRxeqmix.get) {
-    for (int32_t i = gtx_start; i <= gtx_end; i++) {
-      cout << "Ch" << i << " GTX RxEqMix: " << rorc->m_gtx[i]->getRxEqMix()
-           << endl;
-    }
-  } else if (cmd.gtxRxeqmix.set) {
-    for (int32_t i = gtx_start; i <= gtx_end; i++) {
+    if (cmd.gtxRxeqmix.get) {
+        printMetric(i, "GTX RxEqMix", rorc->m_gtx[i]->getRxEqMix());
+    } else if (cmd.gtxRxeqmix.set) {
       rorc->m_gtx[i]->setRxEqMix(cmd.gtxRxeqmix.value);
     }
-  }
 
-  if (cmd.gtxTxdiffctrl.get) {
-    for (int32_t i = gtx_start; i <= gtx_end; i++) {
-      cout << "Ch" << i << " GTX TxDiffCtrl: " << rorc->m_gtx[i]->getTxDiffCtrl()
-           << endl;
-    }
-  } else if (cmd.gtxTxdiffctrl.set) {
-    for (int32_t i = gtx_start; i <= gtx_end; i++) {
+    if (cmd.gtxTxdiffctrl.get) {
+      printMetric(i, "GTX TxDiffCtrl", rorc->m_gtx[i]->getTxDiffCtrl());
+    } else if (cmd.gtxTxdiffctrl.set) {
       rorc->m_gtx[i]->setTxDiffCtrl(cmd.gtxTxdiffctrl.value);
     }
-  }
 
-  if (cmd.gtxTxpreemph.get) {
-    for (int32_t i = gtx_start; i <= gtx_end; i++) {
-      cout << "Ch" << i << " GTX TxPreEmph: " << rorc->m_gtx[i]->getTxPreEmph()
-           << endl;
-    }
-  } else if (cmd.gtxTxpreemph.set) {
-    for (int32_t i = gtx_start; i <= gtx_end; i++) {
+    if (cmd.gtxTxpreemph.get) {
+      printMetric(i, "GTX TxPreEmph", rorc->m_gtx[i]->getTxPreEmph());
+    } else if (cmd.gtxTxpreemph.set) {
       rorc->m_gtx[i]->setTxPreEmph(cmd.gtxTxpreemph.value);
     }
-  }
 
-  if (cmd.gtxTxpostemph.get) {
-    for (int32_t i = gtx_start; i <= gtx_end; i++) {
-      cout << "Ch" << i
-           << " GTX TxPostEmph: " << rorc->m_gtx[i]->getTxPostEmph() << endl;
-    }
-  } else if (cmd.gtxTxpostemph.set) {
-    for (int32_t i = gtx_start; i <= gtx_end; i++) {
+    if (cmd.gtxTxpostemph.get) {
+      printMetric(i, "GTX TxPostEmph", rorc->m_gtx[i]->getTxPostEmph());
+    } else if (cmd.gtxTxpostemph.set) {
       rorc->m_gtx[i]->setTxPostEmph(cmd.gtxTxpostemph.value);
     }
-  }
 
-  if (cmd.gtxRxLosFsm.get) {
-    for (int32_t i = gtx_start; i <= gtx_end; i++) {
+    if (cmd.gtxRxLosFsm.get) {
       uint16_t state = ((rorc->m_gtx[i]->drpRead(0x04) >> 15) & 1);
-      cout << "Ch" << i <<" RX LossOfSync FSM: ";
+      cout << "Ch" << i << " RX LossOfSync FSM: ";
       if (state) {
         cout << "ON (1)";
       } else {
         cout << "OFF (0)";
       }
       cout << endl;
-    }
-  } else if (cmd.gtxRxLosFsm.set) {
-    for (int32_t i = gtx_start; i <= gtx_end; i++) {
+    } else if (cmd.gtxRxLosFsm.set) {
       uint16_t state = rorc->m_gtx[i]->drpRead(0x04);
-      state &= ~(1<<15);
+      state &= ~(1 << 15);
       state |= ((cmd.gtxRxLosFsm.value & 1) << 15);
       rorc->m_gtx[i]->drpWrite(0x04, state);
     }
-  }
 
-  if (cmd.gtxClearCounters) {
-    for (int32_t i = gtx_start; i <= gtx_end; i++) {
+    if (cmd.gtxClearCounters) {
       rorc->m_gtx[i]->clearErrorCounters();
     }
-  }
 
-  if (cmd.gtxStatus){
-    for (int32_t i = gtx_start; i <= gtx_end; i++) {
+    if (cmd.gtxStatus) {
       print_gtxstate(i, rorc->m_gtx[i]);
     }
   }
 
-  if (cmd.dataSource.get) {
-    for (int32_t i = ch_start; i <= ch_end; i++) {
-      const char *dataSourceDescr;
-      uint32_t mux = ((rorc->m_link[i]->ddlReg(RORC_REG_DDL_CTRL)>>16) & 3);
-      switch (rorc->m_linkType[i]) {
-      case RORC_CFG_LINK_TYPE_VIRTUAL:
-        dataSourceDescr = "RAW";
-        break;
-      case RORC_CFG_LINK_TYPE_DIU:
-        switch (mux) {
-        case 0:
-          dataSourceDescr = "DDL";
-          break;
-        case 1:
-          dataSourceDescr = "DDR";
-          break;
-        case 2:
-          dataSourceDescr = "PG";
-          break;
-        default:
-          dataSourceDescr = "UNKNOWN!";
-          break;
-        }
-        break;
-      case RORC_CFG_LINK_TYPE_SIU:
-        switch (mux) {
-        case 0:
-        case 1:
-          dataSourceDescr = "DDL";
-          break;
-        case 2:
-        case 3:
-          dataSourceDescr = "PG";
-          break;
-        default:
-          dataSourceDescr = "UNKNOWN!";
-          break;
-        }
-        break;
-      default:
-        dataSourceDescr = "UNKNOWN!";
-        break;
-      }
+  // iterate over all or selected DMA channels
+  for (int32_t i = ch_start; i <= ch_end; i++) {
 
-      cout << "Ch" << i << " Datasource: " << dataSourceDescr << endl;
-    }
-  } else if (cmd.dataSource.set) {
-    for (int32_t i = ch_start; i <= ch_end; i++) {
+    if (cmd.dataSource.get) {
+      printMetric(i, "Datasource", rorc->m_link[i]->getDataSourceDescr());
+    } else if (cmd.dataSource.set) {
       uint32_t mux = ((rorc->m_link[i]->ddlReg(RORC_REG_DDL_CTRL) >> 16) & 3);
       switch (rorc->m_linkType[i]) {
       case RORC_CFG_LINK_TYPE_VIRTUAL:
@@ -838,20 +791,14 @@ int main(int argc, char *argv[]) {
         break;
       }
     }
-  }
 
-  if (cmd.ddlReset.get) {
-    for (int32_t i = ch_start; i <= ch_end; i++) {
-      cout << "Ch" << i << "DDL Reset: " << rorc->m_ddl[i]->getReset() << endl;
-    }
-  } else if (cmd.ddlReset.set) {
-    for (int32_t i = ch_start; i <= ch_end; i++) {
+    if (cmd.ddlReset.get) {
+      printMetric(i, "DDL Reset", rorc->m_ddl[i]->getReset());
+    } else if (cmd.ddlReset.set) {
       rorc->m_ddl[i]->setReset(cmd.ddlReset.value);
     }
-  }
 
-  if (cmd.ddlClearCounters) {
-    for (int32_t i = ch_start; i <= ch_end; i++) {
+    if (cmd.ddlClearCounters) {
       if (rorc->m_diu[i] != NULL) {
         rorc->m_diu[i]->clearAllLastStatusWords();
         rorc->m_diu[i]->clearDdlDeadtime();
@@ -863,16 +810,12 @@ int main(int argc, char *argv[]) {
       }
       rorc->m_ddl[i]->clearDmaDeadtime();
     }
-  }
 
-  if (cmd.ddlStatus) {
-    for (int32_t i = ch_start; i <= ch_end; i++) {
+    if (cmd.ddlStatus) {
       print_ddlstate(i, rorc);
     }
-  }
 
-  if (cmd.diuInitRemoteDiu) {
-    for (int32_t i = ch_start; i <= ch_end; i++) {
+    if (cmd.diuInitRemoteDiu) {
       if (rorc->m_diu[i] != NULL) {
         if (rorc->m_diu[i]->prepareForDiuData()) {
           cout << "DIU" << i << " Failed to init remote DIU" << endl;
@@ -882,10 +825,8 @@ int main(int argc, char *argv[]) {
              << endl;
       }
     }
-  }
 
-  if (cmd.diuInitRemoteSiu) {
-    for (int32_t i = ch_start; i <= ch_end; i++) {
+    if (cmd.diuInitRemoteSiu) {
       if (rorc->m_diu[i] != NULL) {
         if (rorc->m_diu[i]->prepareForSiuData()) {
           cout << "DIU" << i << " Failed to init remote SIU" << endl;
@@ -895,89 +836,72 @@ int main(int argc, char *argv[]) {
              << endl;
       }
     }
-  }
 
-  if (cmd.diuSendCommand.get) {
-    for (int32_t i = ch_start; i <= ch_end; i++) {
+    if (cmd.diuSendCommand.get) {
       if (rorc->m_diu[i] != NULL) {
-        cout << "Link" << i << " Last DIU command: 0x"
-             << setw(8) << setfill('0')
-             << rorc->m_diu[i]->lastDiuCommand() << endl;
+        cout << "Link" << i << " Last DIU command: 0x" << setw(8)
+             << setfill('0') << rorc->m_diu[i]->lastDiuCommand() << endl;
       } else {
-        cout << "Link" << i << " has no local DIU, no last command"
-             << endl;
+        cout << "Link" << i << " has no local DIU, no last command" << endl;
       }
-    }
-  } else if (cmd.diuSendCommand.set) {
-    for (int32_t i = ch_start; i <= ch_end; i++) {
+    } else if (cmd.diuSendCommand.set) {
       if (rorc->m_diu[i] != NULL) {
         rorc->m_diu[i]->sendCommand(cmd.diuSendCommand.value);
       } else {
-        cout << "Link" << i << " has no local DIU, cannot send command"
-             << endl;
+        cout << "Link" << i << " has no local DIU, cannot send command" << endl;
       }
     }
-  }
 
-  if (cmd.refclkReset) {
-    rorc->m_refclk->reset();
-  }
-
-  if (cmd.dmaClearErrorFlags) {
-    for (int32_t i = ch_start; i <= ch_end; i++) {
+    if (cmd.dmaClearErrorFlags) {
       rorc->m_ch[i]->readAndClearPtrStallFlags();
     }
-  }
 
-  if (cmd.dmaRateLimit.get) {
-    uint32_t pcie_gen = rorc->m_sm->pcieGeneration();
-    for (int32_t i = ch_start; i <= ch_end; i++) {
-      cout << "Link" << i
-           << " Rate Limit: " << rorc->m_ch[i]->rateLimit(pcie_gen) << " Hz"
-           << endl;
-    }
-  } else if (cmd.dmaRateLimit.set) {
-    uint32_t pcie_gen = rorc->m_sm->pcieGeneration();
-    for (int32_t i = ch_start; i <= ch_end; i++) {
+    if (cmd.dmaRateLimit.get) {
+      uint32_t pcie_gen = rorc->m_sm->pcieGeneration();
+      printMetric(i, "Rate Limit", rorc->m_ch[i]->rateLimit(pcie_gen), " Hz");
+    } else if (cmd.dmaRateLimit.set) {
+      uint32_t pcie_gen = rorc->m_sm->pcieGeneration();
       rorc->m_ch[i]->setRateLimit(cmd.dmaRateLimit.value, pcie_gen);
     }
-  }
 
-  if (cmd.ddlFilterAll.get) {
-    for (int32_t i = ch_start; i <= ch_end; i++) {
+    if (cmd.ddlFilterAll.get) {
       if (rorc->m_filter[i]) {
-        cout << "Link" << i
-             << " Filter-All: " << rorc->m_filter[i]->getFilterAll() << endl;
+        printMetric(i, "Filter-All", rorc->m_filter[i]->getFilterAll());
       } else {
         cout << "Link" << i << " has no EventFilter" << endl;
       }
-    }
-  } else if (cmd.ddlFilterAll.set) {
-    for (int32_t i = ch_start; i <= ch_end; i++) {
+    } else if (cmd.ddlFilterAll.set) {
       if (rorc->m_filter[i]) {
         rorc->m_filter[i]->setFilterAll(cmd.ddlFilterAll.value);
       } else {
         cout << "Link" << i << " has no EventFilter" << endl;
       }
     }
-  }
 
-  if (cmd.ddlFilterMask.get) {
-    for (int32_t i = ch_start; i <= ch_end; i++) {
+    if (cmd.ddlFilterMask.get) {
       if (rorc->m_filter[i]) {
-        cout << "Link" << i
-             << " Filter-Mask: " << rorc->m_filter[i]->getFilterMask() << endl;
+        printMetric(i, "Filter-Mask", rorc->m_filter[i]->getFilterMask());
       } else {
         cout << "Link" << i << " has no EventFilter" << endl;
       }
-    }
-  } else if (cmd.ddlFilterMask.set) {
-    for (int32_t i = ch_start; i <= ch_end; i++) {
+    } else if (cmd.ddlFilterMask.set) {
       if (rorc->m_filter[i]) {
         rorc->m_filter[i]->setFilterMask(cmd.ddlFilterMask.value);
       } else {
         cout << "Link" << i << " has no EventFilter" << endl;
       }
+    }
+
+    if (cmd.flowControl.get) {
+      printMetric(i, "Flow Control", rorc->m_link[i]->flowControlIsEnabled());
+    } else if (cmd.flowControl.set) {
+      rorc->m_link[i]->setFlowControlEnable(cmd.flowControl.value);
+    }
+
+    if (cmd.channelActive.get) {
+      printMetric(i, "Channel Active", rorc->m_link[i]->channelIsActive());
+    } else if (cmd.channelActive.set) {
+      rorc->m_link[i]->setChannelActive(cmd.channelActive.value);
     }
   }
 
