@@ -135,10 +135,10 @@ int main(int argc, char *argv[]) {
       try {
         cout << fixed << setprecision(2);
         cout << "\tModule Present: "
-             << stripWhitespaces(*(sm->qsfpVendorName(id))) << " "
-             << stripWhitespaces(*(sm->qsfpPartNumber(id))) << " Rev. "
-             << stripWhitespaces(*(sm->qsfpRevisionNumber(id))) << endl;
-        cout << "\tSerial        : " << *(sm->qsfpSerialNumber(id)) << endl;
+             << stripWhitespaces(sm->qsfpVendorName(id)) << " "
+             << stripWhitespaces(sm->qsfpPartNumber(id)) << " Rev. "
+             << stripWhitespaces(sm->qsfpRevisionNumber(id)) << endl;
+        cout << "\tSerial        : " << sm->qsfpSerialNumber(id) << endl;
         cout << "\tTemperature   : " << (int)sm->qsfpTemperature(id) << " degC"
              << endl;
         cout << "\tVoltage       : " << sm->qsfpVoltage(id) << " V" << endl;
