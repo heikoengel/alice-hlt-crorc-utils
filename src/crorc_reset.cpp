@@ -164,7 +164,8 @@ main
                         {
                             librorc::fastclusterfinder *fcf = 
                                 new librorc::fastclusterfinder(link);
-                            fcf->setState(1, 0); // reset, not enabled
+                            fcf->setReset(1); // reset
+                            fcf->setEnable(0); // not enabled
                             delete fcf;
                         }
                     }
