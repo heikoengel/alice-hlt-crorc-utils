@@ -297,8 +297,6 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  cout << optstring << endl;
-
   /** Parse command line arguments **/
   if (argc > 1) {
     while (1) {
