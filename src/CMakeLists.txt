@@ -5,6 +5,7 @@ SET( UTIL_LIST
   crorc_i2c
   crorc_reset
   crorc_sensors
+  crorc_free_buffers
   crorc_status_dump )
 
 FOREACH( UTIL ${UTIL_LIST} )
