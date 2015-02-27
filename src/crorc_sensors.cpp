@@ -143,7 +143,7 @@ int main(int argc, char *argv[]) {
       switch (opt) {
       case 'h':
         printf(HELP_TEXT);
-        return -1;
+        return 0;
       case 'd':
         deviceId = strtol(optarg, NULL, 0);
         break;
@@ -179,7 +179,7 @@ int main(int argc, char *argv[]) {
     dev = new librorc::device(deviceId);
   }
   catch (...) {
-    printf("Failed to initialize device %d\n", deviceId);
+    std::cerr << "Failed to initialize device " <<  deviceId << std::endl;
     return -1;
   }
 
@@ -188,6 +188,7 @@ int main(int argc, char *argv[]) {
     bar = new librorc::bar(dev, 1);
   }
   catch (...) {
+    std::cerr << "Failed to initialize BAR 1" << std::endl;
     delete dev;
     return -1;
   }
@@ -197,6 +198,7 @@ int main(int argc, char *argv[]) {
     sm = new librorc::sysmon(bar);
   }
   catch (...) {
+    std::cerr << "Failed to initialize SystemMonitor" << std::endl;
     delete bar;
     delete dev;
     return -1;
