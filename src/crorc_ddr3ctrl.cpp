@@ -4,7 +4,7 @@
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or 
+ *  the Free Software Foundation, either version 3 of the License, or
  *  (at your option) any later version.
  *
  *  This program is distributed in the hope that it will be useful,
@@ -59,15 +59,16 @@ using namespace std;
 /********** Prototypes **********/
 uint64_t getDdr3ModuleCapacity(librorc::sysmon *sm, uint8_t module_number);
 uint32_t getNumberOfReplayChannels(librorc::bar *bar, librorc::sysmon *sm);
-int fileToRam(librorc::sysmon *sm, uint32_t channelId,
-                   const char *filename, uint32_t addr, bool is_last_event,
-                   uint32_t &next_addr);
+int fileToRam(librorc::sysmon *sm, uint32_t channelId, const char *filename,
+              uint32_t addr, bool is_last_event, uint32_t &next_addr);
 int waitForReplayDone(librorc::datareplaychannel *dr);
-void printChannelStatus(uint32_t ChannelId, librorc::datareplaychannel *dr,
-                        uint32_t start_addr);
+void printChannelStatus(uint32_t ChannelId, librorc::datareplaychannel *dr);
 
-void printControllerStatus(librorc::bar *bar, librorc::sysmon *sm, int moduleId);
+void printControllerStatus(librorc::bar *bar, librorc::sysmon *sm,
+                           int moduleId);
 void printSpdTiming(librorc::sysmon *sm, int moduleId);
+uint32_t getDataReplayStartAddress(uint32_t chId, uint32_t max_ctrl_size,
+                                   uint32_t module_size);
 
 int main(int argc, char *argv[]) {
   int sSpdTimings = 0;
@@ -94,6 +95,8 @@ int main(int argc, char *argv[]) {
   int sSetWait = 0;
   int sSetTimeout = 0;
   uint32_t sTimeoutVal = 0;
+  bool isModuleOp = false;
+  bool isChannelOp = false;
 
   static struct option long_options[] = {
       // General
@@ -119,8 +122,8 @@ int main(int argc, char *argv[]) {
 
   if (argc > 1) {
     while (1) {
-      int opt =
-          getopt_long(argc, argv, "hn:m:r:tsc:f:O:C:e:DPR:WT:", long_options, NULL);
+      int opt = getopt_long(argc, argv, "hn:m:r:tsc:f:O:C:e:DPR:WT:",
+                            long_options, NULL);
       if (opt == -1) {
         break;
       }
@@ -139,47 +142,59 @@ int main(int argc, char *argv[]) {
         moduleId = strtol(optarg, NULL, 0);
         break;
       case 'r':
+        isModuleOp = true;
         sReset = 1;
         sResetVal = strtol(optarg, NULL, 0);
         break;
       case 't':
+        isModuleOp = true;
         sSpdTimings = 1;
         break;
       case 's':
+        isModuleOp = true;
         sStatus = 1;
         break;
       case 'f':
+        isChannelOp = true;
         list_of_filenames.push_back(optarg);
         sFileToDdr3 = 1;
         break;
       case 'O':
+        isChannelOp = true;
         sSetOneshot = 1;
         sOneshotVal = strtol(optarg, NULL, 0);
         break;
       case 'C':
+        isChannelOp = true;
         sSetContinuous = 1;
         sContinuousVal = strtol(optarg, NULL, 0);
         break;
       case 'e':
+        isChannelOp = true;
         sSetChannelEnable = 1;
         sChannelEnableVal = strtol(optarg, NULL, 0);
         break;
       case 'D':
+        isChannelOp = true;
         sSetDisableReplay = 1;
         break;
       case 'P':
+        isChannelOp = true;
         sSetReplayStatus = 1;
         break;
       case 'R':
+        isChannelOp = true;
         sSetChannelReset = 1;
         sChannelResetVal = strtol(optarg, NULL, 0);
         break;
       case 'W':
+        isChannelOp = true;
         sSetWait = 1;
         break;
       case 'T':
         sSetTimeout = 1;
         sTimeoutVal = strtol(optarg, NULL, 0);
+        break;
       case '?':
         return -1;
       default:
@@ -239,7 +254,7 @@ int main(int argc, char *argv[]) {
   }
 
   // any SO-DIMM module related options set?
-  if (sReset || sStatus || sSpdTimings) {
+  if (isModuleOp) {
 
     for (moduleId = moduleStartId; moduleId <= moduleEndId; moduleId++) {
       uint32_t bitrate = sm->ddr3Bitrate(moduleId);
@@ -261,12 +276,15 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  uint32_t startChannel, endChannel;
+  uint64_t module_size[2] = {0, 0};
+  uint64_t max_ctrl_size[2] = {0, 0};
+  bool module_ready[2] = {false, false};
+
   // any DataReplay related options set?
-  if (sSetOneshot || sSetContinuous || sSetChannelEnable || sSetDisableReplay ||
-      sFileToDdr3 || sSetReplayStatus || sSetChannelReset ) {
+  if (isChannelOp) {
 
     uint32_t nchannels = getNumberOfReplayChannels(bar, sm);
-    uint32_t startChannel, endChannel;
 
     if (channelId == 0xffffffff) {
       startChannel = 0;
@@ -279,18 +297,34 @@ int main(int argc, char *argv[]) {
       endChannel = channelId;
     }
 
-    uint64_t module_size[2] = {0, 0};
-    uint64_t max_ctrl_size[2] = {0, 0};
+#ifdef MODELSIM
+    /** wait for phy_init_done in simulation */
+    while (!(bar->get32(RORC_REG_DDR3_CTRL) & (1 << 1))) {
+      usleep(100);
+    }
+#endif
 
-    // get size of installed RAM modules and max supported size from controller
-    if (startChannel < 6 && sm->ddr3Bitrate(0) != 0) {
-      module_size[0] = getDdr3ModuleCapacity(sm, 0);
-      max_ctrl_size[0] = sm->ddr3ControllerMaxModuleSize(0);
+    if (sFileToDdr3) {
+      /**
+       * get size of installed RAM modules and max supported size from
+       * controller. This is required to calculate the DDR3 addresses.
+       **/
+      if (startChannel < 6 && sm->ddr3Bitrate(0) != 0) {
+        module_size[0] = getDdr3ModuleCapacity(sm, 0);
+        max_ctrl_size[0] = sm->ddr3ControllerMaxModuleSize(0);
+        module_ready[0] = sm->ddr3ModuleInitReady(0);
+      }
+      if (endChannel > 5 && sm->ddr3Bitrate(1) != 0) {
+        module_size[1] = getDdr3ModuleCapacity(sm, 1);
+        max_ctrl_size[1] = sm->ddr3ControllerMaxModuleSize(1);
+        module_ready[1] = sm->ddr3ModuleInitReady(1);
+      }
     }
-    if (endChannel > 5 && sm->ddr3Bitrate(1) != 0) {
-      module_size[1] = getDdr3ModuleCapacity(sm, 1);
-      max_ctrl_size[1] = sm->ddr3ControllerMaxModuleSize(1);
-    }
+  }
+
+  // any DataReplay related options set?
+  if (sSetOneshot || sSetContinuous || sSetChannelEnable || sSetDisableReplay ||
+      sFileToDdr3 || sSetReplayStatus || sSetChannelReset) {
 
     /**
      * now iterate over all selected channels
@@ -304,34 +338,12 @@ int main(int argc, char *argv[]) {
        **/
       uint32_t controllerId = (chId < 6) ? 0 : 1;
 
-      /** skip channel if no DDR3 module was detected */
-      if (!module_size[controllerId]) {
-        continue;
-      }
-
-      /**
-       * set default channel start address:
-       * divide module size into 8 partitions. We can have up to 6
-       * channels per module, so dividing by 6 is also fine here,
-       * but /8 gives the nicer boundaries.
-       * The additional factor 8 comes from the data width of the
-       * DDR3 interface: 64bit = 8 byte for each address.
-       * 1/(8*8) = 2^(-6) => shift right by 6 bit
-       **/
-      uint32_t ddr3_ch_start_addr;
-      uint32_t module_ch = (controllerId==0) ? chId : (chId-6);
-      if (max_ctrl_size[controllerId] >= module_size[controllerId]) {
-        ddr3_ch_start_addr = module_ch * (module_size[controllerId] >> 6);
-      } else {
-        ddr3_ch_start_addr = module_ch * (max_ctrl_size[controllerId] >> 6);
-      }
-
       /** create link instance */
       librorc::link *link = new librorc::link(bar, chId);
 
       if (!link->isDdlDomainReady()) {
-        cout << "WARNING: Channel " << chId
-             << " clock not ready - skipping..." << endl;
+        cout << "WARNING: Channel " << chId << " clock not ready - skipping..."
+             << endl;
         delete link;
         continue;
       }
@@ -339,37 +351,32 @@ int main(int argc, char *argv[]) {
       /** create data replay channel instance */
       librorc::datareplaychannel *dr = new librorc::datareplaychannel(link);
 
-#ifdef MODELSIM
-      /** wait for phy_init_done in simulation */
-      while (!(bar->get32(RORC_REG_DDR3_CTRL) & (1 << 1))) {
-        usleep(100);
-      }
-#endif
-
-      if (!sm->ddr3ModuleInitReady(controllerId)) {
-        cout << "ERROR: DDR3 Controller " << controllerId
-             << " is not ready - doing nothing." << endl;
-        continue;
-      }
-
       if (sFileToDdr3) {
+
+        if (!module_ready[controllerId]) {
+          cout << "DDR3 Controller/Module " << controllerId
+               << " not ready or not available - skipping Ch " << chId << "."
+               << endl;
+          continue;
+        }
         int ret = 0;
+        uint32_t ddr3_ch_start_addr = getDataReplayStartAddress(
+            chId, max_ctrl_size[controllerId], module_size[controllerId]);
         uint32_t next_addr = ddr3_ch_start_addr;
         vector<string>::iterator iter, end;
         iter = list_of_filenames.begin();
         end = list_of_filenames.end();
 
         /** iterate over list of files */
-        while( iter != end )
-        {
-            bool is_last_event = (iter == (end - 1));
-            const char *filename = (*iter).c_str();
-            ret = fileToRam(sm, chId, filename, next_addr, is_last_event,
-                            next_addr);
-            if (ret) {
-              break;
-            }
-            ++iter;
+        while (iter != end) {
+          bool is_last_event = (iter == (end - 1));
+          const char *filename = (*iter).c_str();
+          ret = fileToRam(sm, chId, filename, next_addr, is_last_event,
+                          next_addr);
+          if (ret) {
+            break;
+          }
+          ++iter;
         }
         if (ret) {
           perror("Failed to load File to RAM");
@@ -403,8 +410,7 @@ int main(int argc, char *argv[]) {
           dr->setReset(0);
         } else if (!dr->isEnabled()) {
           // not in reset, not enabled, this is where we want to end
-          cout << "Channel " << chId << " is not enabled, skipping..."
-               << endl;
+          cout << "Channel " << chId << " is not enabled, skipping..." << endl;
         } else {
           // enable OneShot if not already enabled
           if (!dr->isOneshotEnabled()) {
@@ -428,7 +434,7 @@ int main(int argc, char *argv[]) {
       } // sSetDisableReplay
 
       if (sSetReplayStatus) {
-        printChannelStatus(chId, dr, ddr3_ch_start_addr);
+        printChannelStatus(chId, dr);
       }
       delete dr;
       delete link;
@@ -439,34 +445,44 @@ int main(int argc, char *argv[]) {
   int retval = 0;
 
   if (sSetWait) {
-    uint32_t nchannels = getNumberOfReplayChannels(bar, sm);
-    uint32_t startChannel, endChannel;
+    cout << "Waiting..." << endl;
+    bool replayDone[endChannel];
+    bool allDone = false;
     struct timeval start, now;
     gettimeofday(&start, NULL);
-    now = start;
-    bool replay_running = true;
     bool timeout = false;
-    while (replay_running && not timeout) {
-      bool all_done = true;
+    while (!allDone && !timeout) {
       for (uint32_t chId = startChannel; chId <= endChannel; chId++) {
         librorc::link *link = new librorc::link(bar, chId);
         librorc::datareplaychannel *dr = new librorc::datareplaychannel(link);
-        all_done &= dr->isDone();
+        replayDone[chId] = dr->isDone();
         delete dr;
         delete link;
       }
-      replay_running = !all_done;
+      allDone = true;
+      for (int i = startChannel; i <= endChannel; i++) {
+        allDone &= replayDone[i];
+      }
       if (sSetTimeout) {
         gettimeofday(&now, NULL);
-        if (librorc::gettimeofdayDiff(now, start) > sTimeoutVal) {
+        double tdiff = librorc::gettimeofdayDiff(start, now);
+        if (tdiff > sTimeoutVal) {
           timeout = true;
         }
       }
       usleep(1000);
     } // while
 
-    if(replay_running) {
-        retval = -1;
+    if (!allDone) {
+      retval = -1;
+    }
+
+    for (int i = startChannel; i <= endChannel; i++) {
+      if (replayDone[i]) {
+        cout << "Ch" << i << " Replay done." << endl;
+      } else {
+        cerr << "*** Ch" << i << " Replay Timeout! ***" << endl;
+      }
     }
   } // sSetWait
 
@@ -519,9 +535,8 @@ uint32_t getNumberOfReplayChannels(librorc::bar *bar, librorc::sysmon *sm) {
 /**
  * write a file to DDR3
  **/
-int fileToRam(librorc::sysmon *sm, uint32_t channelId,
-                   const char *filename, uint32_t addr,
-                   bool is_last_event, uint32_t &next_addr) {
+int fileToRam(librorc::sysmon *sm, uint32_t channelId, const char *filename,
+              uint32_t addr, bool is_last_event, uint32_t &next_addr) {
   int fd_in = open(filename, O_RDONLY);
   if (fd_in == -1) {
     cerr << "ERROR: Failed to open input file" << filename << endl;
@@ -541,29 +556,30 @@ int fileToRam(librorc::sysmon *sm, uint32_t channelId,
     next_addr =
         sm->ddr3DataReplayEventToRam(event,
                                      (fd_in_stat.st_size >> 2), // num_dws
-                                     addr,     // ddr3 start address
+                                     addr,           // ddr3 start address
                                      channelId,      // channel
                                      is_last_event); // last event
   } catch (int e) {
-      const char* reason;
-    switch(e) {
-        case LIBRORC_SYSMON_ERROR_DATA_REPLAY_TIMEOUT:
-            reason = "Timeout";
-            errno = EBUSY;
-            break;
-        case LIBRORC_SYSMON_ERROR_DATA_REPLAY_INVALID:
-            reason = "Invalid Channel";
-            errno = EINVAL;
-            break;
-        default:
-            reason = "unknown";
-            errno = EIO;
-            break;
+    const char *reason;
+    switch (e) {
+    case LIBRORC_SYSMON_ERROR_DATA_REPLAY_TIMEOUT:
+      reason = "Timeout";
+      errno = EBUSY;
+      break;
+    case LIBRORC_SYSMON_ERROR_DATA_REPLAY_INVALID:
+      reason = "Invalid Channel";
+      errno = EINVAL;
+      break;
+    default:
+      reason = "unknown";
+      errno = EIO;
+      break;
     }
 
-    cerr << reason << " Exception (" << e << ") while writing event to RAM:" << endl
-         << "File " << filename << " Channel " << channelId << " Addr " << hex
-         << addr << dec << " LastEvent " << is_last_event << endl;
+    cerr << reason << " Exception (" << e
+         << ") while writing event to RAM:" << endl << "File " << filename
+         << " Channel " << channelId << " Addr " << hex << addr << dec
+         << " LastEvent " << is_last_event << endl;
     return -1;
   }
 
@@ -587,8 +603,7 @@ int waitForReplayDone(librorc::datareplaychannel *dr) {
 /**
  * print the status of a replay channel
  **/
-void printChannelStatus(uint32_t ChannelId, librorc::datareplaychannel *dr,
-                        uint32_t start_addr) {
+void printChannelStatus(uint32_t ChannelId, librorc::datareplaychannel *dr) {
   cout << "Channel " << ChannelId << " Config:" << endl << "\tStart Address: 0x"
        << hex << dr->startAddress() << dec << endl
        << "\tReset: " << dr->isInReset() << endl
@@ -605,7 +620,8 @@ void printChannelStatus(uint32_t ChannelId, librorc::datareplaychannel *dr,
 /**
  * print controller status
  **/
-void printControllerStatus(librorc::bar *bar, librorc::sysmon *sm, int moduleId) {
+void printControllerStatus(librorc::bar *bar, librorc::sysmon *sm,
+                           int moduleId) {
   uint32_t ddrctrl = bar->get32(RORC_REG_DDR3_CTRL);
   uint32_t off = (16 * moduleId);
   bool OK = (((ddrctrl >> off) & 0x1ff) == 0x9e);
@@ -714,4 +730,24 @@ void printSpdTiming(librorc::sysmon *sm, int moduleId) {
     }
   }
   cout << endl;
+}
+
+uint32_t getDataReplayStartAddress(uint32_t chId, uint32_t max_ctrl_size,
+                                   uint32_t module_size) {
+  /**
+   * set default channel start address:
+   * divide module size into 8 partitions. We can have up to 6
+   * channels per module, so dividing by 6 is also fine here,
+   * but /8 gives the nicer boundaries.
+   * The additional factor 8 comes from the data width of the
+   * DDR3 interface: 64bit = 8 byte for each address.
+   * 1/(8*8) = 2^(-6) => shift right by 6 bit
+   **/
+  uint32_t controllerId = (chId < 6) ? 0 : 1;
+  uint32_t module_ch = (controllerId == 0) ? chId : (chId - 6);
+  if (max_ctrl_size >= module_size) {
+    return module_ch * (module_size >> 6);
+  } else {
+    return module_ch * (max_ctrl_size >> 6);
+  }
 }
