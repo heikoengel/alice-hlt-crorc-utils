@@ -56,6 +56,10 @@ using namespace std;
   "-T|--timeout [s]        timeout for -W|--wait option\n"                     \
   "\n"
 
+#define DDR3_MAX_RESET_RETRIES 5
+#define DDR3_INIT_TIMEOUT_RETRIES 100
+#define DDR3_INIT_TIMEOUT_PERIOD 1000
+
 /********** Prototypes **********/
 uint64_t getDdr3ModuleCapacity(librorc::sysmon *sm, uint8_t module_number);
 uint32_t getNumberOfReplayChannels(librorc::bar *bar, librorc::sysmon *sm);
@@ -64,13 +68,13 @@ int fileToRam(librorc::sysmon *sm, uint32_t channelId, const char *filename,
 int waitForReplayDone(librorc::datareplaychannel *dr);
 void printChannelStatus(uint32_t ChannelId, librorc::datareplaychannel *dr);
 
-void printControllerStatus(librorc::bar *bar, librorc::sysmon *sm,
-                           int moduleId);
+void printControllerStatus(librorc::ddr3 *ddr, librorc::sysmon *sm);
 void printSpdTiming(librorc::sysmon *sm, int moduleId);
 uint32_t getDataReplayStartAddress(uint32_t chId, uint32_t max_ctrl_size,
                                    uint32_t module_size);
 
 int main(int argc, char *argv[]) {
+  int ret = 0;
   int sSpdTimings = 0;
   int sStatus = 0;
   int sReset = 0;
@@ -257,22 +261,54 @@ int main(int argc, char *argv[]) {
   if (isModuleOp) {
 
     for (moduleId = moduleStartId; moduleId <= moduleEndId; moduleId++) {
-      uint32_t bitrate = sm->ddr3Bitrate(moduleId);
-      if (bitrate == 0) {
+      librorc::ddr3 *ddr = new librorc::ddr3(bar, moduleId);
+      if (!ddr->isImplemented()) {
         cout << "No DDR3 Controller " << moduleId
              << " available in Firmware. Skipping..." << endl;
         continue;
       }
-
       if (sReset) {
-        sm->ddr3SetReset(moduleId, sResetVal);
+        bool ensure_good = false;
+        if(sResetVal==0 && ddr->getReset()==1) {
+          ensure_good = true; //this is a deassert request
+        }
+        ddr->setReset(sResetVal);
+        if (ensure_good) {
+          for (int i = 0; i < DDR3_MAX_RESET_RETRIES; i++) {
+            uint32_t timeout = DDR3_INIT_TIMEOUT_RETRIES;
+            while (!ddr->initPhaseDone() && (timeout>0)) {
+              timeout--;
+              usleep(DDR3_INIT_TIMEOUT_PERIOD);
+            }
+            if(timeout==0) {
+              cerr << "DDR3 C" << moduleId << " Initialization timeout." << endl;
+            }
+            if (!ddr->initSuccessful()) {
+              cerr << "DDR3 C" << moduleId << " Initialization failed - retrying..."
+                   << endl;
+              ddr->setReset(1);
+              usleep(1000);
+              ddr->setReset(0);
+            } else {
+              continue;
+            }
+          }
+          if (!ddr->initSuccessful()) {
+            cerr << "DDR3 C" << moduleId << " Initialization failed after "
+                 << DDR3_MAX_RESET_RETRIES << " retries - aborting." << endl;
+            ret = -1;
+          } else {
+            ret = 0;
+          }
+        }
       }
       if (sStatus) {
-        printControllerStatus(bar, sm, moduleId);
+        printControllerStatus(ddr, sm);
       }
       if (sSpdTimings) {
         printSpdTiming(sm, moduleId);
       }
+      delete ddr;
     }
   }
 
@@ -442,8 +478,6 @@ int main(int argc, char *argv[]) {
     } // for-loop over selected channels
   }   // any DataReplay related options set
 
-  int retval = 0;
-
   if (sSetWait) {
     cout << "Waiting..." << endl;
     bool replayDone[endChannel];
@@ -474,7 +508,7 @@ int main(int argc, char *argv[]) {
     } // while
 
     if (!allDone) {
-      retval = -1;
+      ret = -1;
     }
 
     for (int i = startChannel; i <= endChannel; i++) {
@@ -489,7 +523,7 @@ int main(int argc, char *argv[]) {
   delete sm;
   delete bar;
   delete dev;
-  return retval;
+  return ret;
 }
 
 /**
@@ -620,39 +654,28 @@ void printChannelStatus(uint32_t ChannelId, librorc::datareplaychannel *dr) {
 /**
  * print controller status
  **/
-void printControllerStatus(librorc::bar *bar, librorc::sysmon *sm,
-                           int moduleId) {
-  uint32_t ddrctrl = bar->get32(RORC_REG_DDR3_CTRL);
-  uint32_t off = (16 * moduleId);
-  bool OK = (((ddrctrl >> off) & 0x1ff) == 0x9e);
-  bool RESET = (((ddrctrl >> off) & 1) == 1);
+void printControllerStatus(librorc::ddr3 *ddr, librorc::sysmon *sm) {
+  uint16_t state = ddr->controllerState();
+  bool OK = ddr->initSuccessful();
+  bool RESET = (ddr->getReset() != 0);
   const char *status = (RESET) ? "RESET" : ((OK) ? "OK" : "ERROR");
-  cout << endl << "Controller " << moduleId << " Status: " << status << endl;
-  cout << "\tReset: " << ((ddrctrl >> off) & 1) << endl;
-  cout << "\tPhyInitDone: " << ((ddrctrl >> (off + 1)) & 1) << endl;
-  cout << "\tPLL Lock: " << ((ddrctrl >> (off + 2)) & 1) << endl;
-  cout << "\tRead Levelling Started: " << ((ddrctrl >> (off + 3)) & 1) << endl;
-  cout << "\tRead Levelling Done: " << ((ddrctrl >> (off + 4)) & 1) << endl;
-  cout << "\tRead Levelling Error: " << ((ddrctrl >> (off + 5)) & 1) << endl;
-  cout << "\tWrite Levelling Started: " << ((ddrctrl >> (off + 6)) & 1) << endl;
-  cout << "\tWrite Levelling Done: " << ((ddrctrl >> (off + 7)) & 1) << endl;
-  cout << "\tWrite Levelling Error: " << ((ddrctrl >> (off + 8)) & 1) << endl;
+  cout << endl << "Controller " << ddr->id() << " Status: " << status << endl;
+  cout << "\tReset: " << ((state >> LIBRORC_DDR3_RESET) & 1) << endl;
+  cout << "\tPhyInitDone: " << ((state >> LIBRORC_DDR3_PHYINITDONE) & 1) << endl;
+  cout << "\tPLL Lock: " << ((state >> LIBRORC_DDR3_PLLLOCK) & 1) << endl;
+  cout << "\tRead Levelling Started: " << ((state >> LIBRORC_DDR3_RDLVL_START) & 1) << endl;
+  cout << "\tRead Levelling Done: " << ((state >> LIBRORC_DDR3_RDLVL_DONE) & 1) << endl;
+  cout << "\tRead Levelling Error: " << ((state >> LIBRORC_DDR3_RDLVL_ERROR) & 1) << endl;
+  cout << "\tWrite Levelling Started: " << ((state >> LIBRORC_DDR3_WRLVL_START) & 1) << endl;
+  cout << "\tWrite Levelling Done: " << ((state >> LIBRORC_DDR3_WRLVL_DONE) & 1) << endl;
+  cout << "\tWrite Levelling Error: " << ((state >> LIBRORC_DDR3_WRLVL_ERROR) & 1) << endl;
   cout << "\tMax. Controller Capacity: "
-       << (sm->ddr3ControllerMaxModuleSize(moduleId) >> 20) << " MB" << endl;
+       << (ddr->maxModuleSize() >> 20) << " MB" << endl;
 
   if (sm->firmwareIsHltHardwareTest()) {
-    uint32_t rdcnt, wrcnt;
-    if (moduleId == 0) {
-      rdcnt = bar->get32(RORC_REG_DDR3_C0_TESTER_RDCNT);
-      wrcnt = bar->get32(RORC_REG_DDR3_C0_TESTER_WRCNT);
-    } else {
-      rdcnt = bar->get32(RORC_REG_DDR3_C1_TESTER_RDCNT);
-      wrcnt = bar->get32(RORC_REG_DDR3_C1_TESTER_WRCNT);
-    }
-
-    cout << "\tRead Count: " << rdcnt << endl;
-    cout << "\tWrite Count: " << wrcnt << endl;
-    cout << "\tTG Error: " << ((ddrctrl >> (off + 15)) & 1) << endl;
+    cout << "\tRead Count: " << ddr->getTgRdCount() << endl;
+    cout << "\tWrite Count: " << ddr->getTgWrCount() << endl;
+    cout << "\tTG Error: " << ddr->getTgErrorFlag() << endl;
   }
   cout << endl;
 }
