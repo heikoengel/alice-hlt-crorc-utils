@@ -674,21 +674,15 @@ int main(int argc, char *argv[]) {
     }
 
     if (cmd.gtxRxReset.get) {
-      printMetric(i, "GTX RX Reset", ((rorc->m_gtx[i]->getReset() >> 1) & 1));
+      printMetric(i, "GTX RX Reset", rorc->m_gtx[i]->getRxReset());
     } else if (cmd.gtxRxReset.set) {
-      uint32_t val = rorc->m_gtx[i]->getReset();
-      val &= ~(1 << 1); // clear RX Reset bit
-      val |= ((cmd.gtxRxReset.value & 1) << 1);
-      rorc->m_gtx[i]->setReset(val);
+      rorc->m_gtx[i]->setRxReset(cmd.gtxRxReset.value);
     }
 
     if (cmd.gtxTxReset.get) {
-      printMetric(i, "GTX TX Reset", ((rorc->m_gtx[i]->getReset() >> 2) & 1));
+      printMetric(i, "GTX TX Reset", rorc->m_gtx[i]->getTxReset());
     } else if (cmd.gtxTxReset.set) {
-      uint32_t val = rorc->m_gtx[i]->getReset();
-      val &= ~(1 << 2); // clear TX Reset bit
-      val |= ((cmd.gtxTxReset.value & 1) << 2);
-      rorc->m_gtx[i]->setReset(val);
+      rorc->m_gtx[i]->setTxReset(cmd.gtxTxReset.value);
     }
 
     if (cmd.gtxLoopback.get) {
