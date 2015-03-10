@@ -685,72 +685,77 @@ void printControllerStatus(librorc::ddr3 *ddr, librorc::sysmon *sm) {
  **/
 void printSpdTiming(librorc::sysmon *sm, int moduleId) {
   cout << endl << "Module " << moduleId << " SPD Readings:" << endl;
-  cout << "Part Number      : " << sm->ddr3SpdReadString(moduleId, 128, 145)
-       << endl;
+  try {
+    cout << "Part Number      : " << sm->ddr3SpdReadString(moduleId, 128, 145)
+         << endl;
 
-  uint32_t spdrev = sm->ddr3SpdRead(moduleId, 0x01);
-  cout << "SPD Revision     : " << hex << setw(1) << setfill('0')
-       << (spdrev >> 4) << "." << (spdrev & 0x0f) << endl;
-  cout << "DRAM Device Type : 0x" << hex << setw(2) << setfill('0')
-       << (int)sm->ddr3SpdRead(moduleId, 0x02) << endl;
-  cout << "Module Type      : 0x" << hex << setw(2) << setfill('0')
-       << (int)sm->ddr3SpdRead(moduleId, 0x03) << endl;
-  uint32_t density = sm->ddr3SpdRead(moduleId, 0x04);
-  uint32_t ba_bits = (((density >> 4) & 0x7) + 3);
-  uint32_t sd_cap = 256 * (1 << (density & 0xf));
-  cout << "Bank Address     : " << dec << ba_bits << " bit" << endl;
-  cout << "SDRAM Capacity   : " << dec << sd_cap << " Mbit" << endl;
-  uint32_t mod_org = sm->ddr3SpdRead(moduleId, 0x07);
-  uint32_t n_ranks = ((mod_org >> 3) & 0x7) + 1;
-  uint32_t dev_width = 4 * (1 << (mod_org & 0x07));
-  cout << "Number of Ranks  : " << dec << n_ranks << endl;
-  cout << "Device Width     : " << dec << dev_width << " bit" << endl;
-  uint32_t mod_width = sm->ddr3SpdRead(moduleId, 0x08);
-  uint32_t pb_width = 8 * (1 << (mod_width & 0x7));
-  cout << "Bus Width        : " << dec << pb_width << " bit" << endl;
-  uint32_t total_cap = sd_cap / 8 * pb_width / dev_width * n_ranks;
-  cout << "Total Capacity   : " << dec << total_cap << " MB" << endl;
-  uint32_t mtb_dividend = sm->ddr3SpdRead(moduleId, 10);
-  uint32_t mtb_divisor = sm->ddr3SpdRead(moduleId, 11);
-  float timebase = (float)mtb_dividend / (float)mtb_divisor;
-  cout << "Medium Timebase  : " << timebase << " ns" << endl;
-  uint32_t tckmin = sm->ddr3SpdRead(moduleId, 12);
-  cout << "tCKmin           : " << tckmin *timebase << " ns" << endl;
-  uint32_t taamin = sm->ddr3SpdRead(moduleId, 16);
-  cout << "tAAmin           : " << taamin *timebase << " ns" << endl;
-  uint32_t twrmin = sm->ddr3SpdRead(moduleId, 17);
-  cout << "tWRmin           : " << twrmin *timebase << " ns" << endl;
-  uint32_t trcdmin = sm->ddr3SpdRead(moduleId, 18);
-  cout << "tRCDmin          : " << trcdmin *timebase << " ns" << endl;
-  uint32_t trrdmin = sm->ddr3SpdRead(moduleId, 19);
-  cout << "tRRDmin          : " << trrdmin *timebase << " ns" << endl;
-  uint32_t trpmin = sm->ddr3SpdRead(moduleId, 20);
-  cout << "tRPmin           : " << trpmin *timebase << " ns" << endl;
-  uint32_t trasrcupper = sm->ddr3SpdRead(moduleId, 21);
-  uint32_t trasmin =
-      ((trasrcupper & 0x0f) << 8) | sm->ddr3SpdRead(moduleId, 22);
-  cout << "tRASmin          : " << trasmin *timebase << " ns" << endl;
-  uint32_t trcmin = ((trasrcupper & 0xf0) << 4) | sm->ddr3SpdRead(moduleId, 23);
-  cout << "tRCmin           : " << trcmin *timebase << " ns" << endl;
-  uint32_t trfcmin =
-      (sm->ddr3SpdRead(moduleId, 25) << 8) | sm->ddr3SpdRead(moduleId, 24);
-  cout << "tRFCmin          : " << trfcmin *timebase << " ns" << endl;
-  uint32_t twtrmin = sm->ddr3SpdRead(moduleId, 26);
-  cout << "tWTRmin          : " << twtrmin *timebase << " ns" << endl;
-  uint32_t trtpmin = sm->ddr3SpdRead(moduleId, 27);
-  cout << "tRTPmin          : " << trtpmin *timebase << " ns" << endl;
-  uint32_t tfawmin = ((sm->ddr3SpdRead(moduleId, 28) << 8) & 0x0f) |
-                     sm->ddr3SpdRead(moduleId, 29);
-  cout << "tFAWmin          : " << tfawmin *timebase << " ns" << endl;
-  uint32_t tropts = sm->ddr3SpdRead(moduleId, 32);
-  cout << "Thermal Sensor   : " << (int)((tropts >> 7) & 1) << endl;
-  uint32_t cassupport =
-      (sm->ddr3SpdRead(moduleId, 15) << 8) | sm->ddr3SpdRead(moduleId, 14);
-  cout << "CAS Latencies    : ";
-  for (int i = 0; i < 14; i++) {
-    if ((cassupport >> i) & 1) {
-      cout << "CL" << (i + 4) << " ";
+    uint32_t spdrev = sm->ddr3SpdRead(moduleId, 0x01);
+    cout << "SPD Revision     : " << hex << setw(1) << setfill('0')
+         << (spdrev >> 4) << "." << (spdrev & 0x0f) << endl;
+    cout << "DRAM Device Type : 0x" << hex << setw(2) << setfill('0')
+         << (int)sm->ddr3SpdRead(moduleId, 0x02) << endl;
+    cout << "Module Type      : 0x" << hex << setw(2) << setfill('0')
+         << (int)sm->ddr3SpdRead(moduleId, 0x03) << endl;
+    uint32_t density = sm->ddr3SpdRead(moduleId, 0x04);
+    uint32_t ba_bits = (((density >> 4) & 0x7) + 3);
+    uint32_t sd_cap = 256 * (1 << (density & 0xf));
+    cout << "Bank Address     : " << dec << ba_bits << " bit" << endl;
+    cout << "SDRAM Capacity   : " << dec << sd_cap << " Mbit" << endl;
+    uint32_t mod_org = sm->ddr3SpdRead(moduleId, 0x07);
+    uint32_t n_ranks = ((mod_org >> 3) & 0x7) + 1;
+    uint32_t dev_width = 4 * (1 << (mod_org & 0x07));
+    cout << "Number of Ranks  : " << dec << n_ranks << endl;
+    cout << "Device Width     : " << dec << dev_width << " bit" << endl;
+    uint32_t mod_width = sm->ddr3SpdRead(moduleId, 0x08);
+    uint32_t pb_width = 8 * (1 << (mod_width & 0x7));
+    cout << "Bus Width        : " << dec << pb_width << " bit" << endl;
+    uint32_t total_cap = sd_cap / 8 * pb_width / dev_width * n_ranks;
+    cout << "Total Capacity   : " << dec << total_cap << " MB" << endl;
+    uint32_t mtb_dividend = sm->ddr3SpdRead(moduleId, 10);
+    uint32_t mtb_divisor = sm->ddr3SpdRead(moduleId, 11);
+    float timebase = (float)mtb_dividend / (float)mtb_divisor;
+    cout << "Medium Timebase  : " << timebase << " ns" << endl;
+    uint32_t tckmin = sm->ddr3SpdRead(moduleId, 12);
+    cout << "tCKmin           : " << tckmin *timebase << " ns" << endl;
+    uint32_t taamin = sm->ddr3SpdRead(moduleId, 16);
+    cout << "tAAmin           : " << taamin *timebase << " ns" << endl;
+    uint32_t twrmin = sm->ddr3SpdRead(moduleId, 17);
+    cout << "tWRmin           : " << twrmin *timebase << " ns" << endl;
+    uint32_t trcdmin = sm->ddr3SpdRead(moduleId, 18);
+    cout << "tRCDmin          : " << trcdmin *timebase << " ns" << endl;
+    uint32_t trrdmin = sm->ddr3SpdRead(moduleId, 19);
+    cout << "tRRDmin          : " << trrdmin *timebase << " ns" << endl;
+    uint32_t trpmin = sm->ddr3SpdRead(moduleId, 20);
+    cout << "tRPmin           : " << trpmin *timebase << " ns" << endl;
+    uint32_t trasrcupper = sm->ddr3SpdRead(moduleId, 21);
+    uint32_t trasmin =
+        ((trasrcupper & 0x0f) << 8) | sm->ddr3SpdRead(moduleId, 22);
+    cout << "tRASmin          : " << trasmin *timebase << " ns" << endl;
+    uint32_t trcmin =
+        ((trasrcupper & 0xf0) << 4) | sm->ddr3SpdRead(moduleId, 23);
+    cout << "tRCmin           : " << trcmin *timebase << " ns" << endl;
+    uint32_t trfcmin =
+        (sm->ddr3SpdRead(moduleId, 25) << 8) | sm->ddr3SpdRead(moduleId, 24);
+    cout << "tRFCmin          : " << trfcmin *timebase << " ns" << endl;
+    uint32_t twtrmin = sm->ddr3SpdRead(moduleId, 26);
+    cout << "tWTRmin          : " << twtrmin *timebase << " ns" << endl;
+    uint32_t trtpmin = sm->ddr3SpdRead(moduleId, 27);
+    cout << "tRTPmin          : " << trtpmin *timebase << " ns" << endl;
+    uint32_t tfawmin = ((sm->ddr3SpdRead(moduleId, 28) << 8) & 0x0f) |
+                       sm->ddr3SpdRead(moduleId, 29);
+    cout << "tFAWmin          : " << tfawmin *timebase << " ns" << endl;
+    uint32_t tropts = sm->ddr3SpdRead(moduleId, 32);
+    cout << "Thermal Sensor   : " << (int)((tropts >> 7) & 1) << endl;
+    uint32_t cassupport =
+        (sm->ddr3SpdRead(moduleId, 15) << 8) | sm->ddr3SpdRead(moduleId, 14);
+    cout << "CAS Latencies    : ";
+    for (int i = 0; i < 14; i++) {
+      if ((cassupport >> i) & 1) {
+        cout << "CL" << (i + 4) << " ";
+      }
     }
+  } catch (...) {
+    cerr << "Failed to read from DDR3 C" << moduleId << " EEPROM" << endl;
   }
   cout << endl;
 }
