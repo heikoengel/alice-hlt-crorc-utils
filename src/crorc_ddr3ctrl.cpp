@@ -290,7 +290,7 @@ int main(int argc, char *argv[]) {
               usleep(1000);
               ddr->setReset(0);
             } else {
-              continue;
+              break;
             }
           }
           if (!ddr->initSuccessful()) {
