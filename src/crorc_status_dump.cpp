@@ -192,7 +192,7 @@ int main(int argc, char *argv[]) {
     dev = new librorc::device(device_number);
   } catch (int e) {
     cout << "Failed to intialize device " << device_number << ": "
-         << dev->errMsg(e) << endl;
+         << librorc::errMsg(e) << endl;
     return -1;
   }
 
@@ -201,7 +201,7 @@ int main(int argc, char *argv[]) {
   try {
     bar = new librorc::bar(dev, 1);
   } catch (int e) {
-    cout << "ERROR: failed to initialize BAR." << endl;
+    cout << "ERROR: failed to initialize BAR:" << librorc::errMsg(e) << endl;
     delete dev;
     return -1;
   }
