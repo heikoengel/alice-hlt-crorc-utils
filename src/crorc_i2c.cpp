@@ -181,7 +181,7 @@ int
     {
         cout << "ERROR: failed to initialize BAR." << endl;
         delete dev;
-        abort();
+        return -1;
     }
 
     /** Instantiate a new sysmon */
@@ -195,7 +195,7 @@ int
         cout << "Sysmon init failed!" << endl;
         delete bar;
         delete dev;
-        abort();
+        return -1;
     }
 
     if ( do_write )

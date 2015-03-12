@@ -72,20 +72,17 @@ main
     {
         cout << "No or invalid device selected: " << device_number << endl;
         cout << HELP_TEXT;
-        abort();
+        return -1;
     }
 
     /** Instantiate device **/
     librorc::device *dev = NULL;
-    try
-    {
-        dev = new librorc::device(device_number);
-    }
-    catch(...)
-    {
-        cout << "Failed to intialize device " << device_number
-            << endl;
-        return -1;
+    try {
+      dev = new librorc::device(device_number);
+    } catch (int e) {
+      cout << "Failed to intialize device " << device_number
+           << ": " << librorc::errMsg(e) << endl;
+      return -1;
     }
 
     /** Instantiate a new bar */
@@ -94,11 +91,12 @@ main
     {
         bar = new librorc::bar(dev, 1);
     }
-    catch(...)
+    catch(int e)
     {
-        cout << "ERROR: failed to initialize BAR." << endl;
+        cout << "ERROR: failed to initialize BAR."
+             << ": " << librorc::errMsg(e) << endl;
         delete dev;
-        abort();
+        return -1;
     }
 
     librorc::sysmon *sm = NULL;
@@ -111,7 +109,7 @@ main
         cout << "ERROR: failed to initialize System Manager." << endl;
         delete bar;
         delete dev;
-        abort();
+        return -1;
     }
 
     sm->clearAllErrorCounters();

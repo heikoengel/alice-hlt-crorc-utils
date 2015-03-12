@@ -89,8 +89,9 @@ int main(int argc, char *argv[]) {
   librorc::device *dev = NULL;
   try {
     dev = new librorc::device(deviceId);
-  } catch (...) {
-    cerr << "Failed to intialize device " << deviceId << endl;
+  } catch (int e) {
+    cerr << "Failed to intialize device " << deviceId << ": " << librorc::errMsg(e)
+         << endl;
     return -1;
   }
 
@@ -100,7 +101,7 @@ int main(int argc, char *argv[]) {
   } catch (...) {
     cerr << "ERROR: failed to initialize BAR." << endl;
     delete dev;
-    abort();
+    return -1;
   }
 
   librorc::sysmon *sm;
@@ -110,7 +111,7 @@ int main(int argc, char *argv[]) {
     cerr << "Sysmon init failed!" << endl;
     delete bar;
     delete dev;
-    abort();
+    return -1;
   }
 
   uint32_t qsfp_start, qsfp_end;

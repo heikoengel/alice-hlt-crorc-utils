@@ -181,20 +181,20 @@ int main(int argc, char *argv[]) {
     default:
       cout << "ERROR: Unknown parameter (" << arg << ")" << endl;
       cout << HELP_TEXT;
-      abort();
+      return -1;
     }
   }
 
   /** check parameters **/
   if (!device_id_set) {
     cout << "ERROR: No board ID given." << endl << HELP_TEXT << endl;
-    abort();
+    return -1;
   }
 
   if (!flash_select_set || flash_select > 1) {
     cout << "ERROR: No or invalid flash select given." << endl << HELP_TEXT
          << endl;
-    abort();
+    return -1;
   }
 
   /** initialize device **/
@@ -204,7 +204,7 @@ int main(int argc, char *argv[]) {
   }
   catch (...) {
     cout << "ERROR: failed to initialize device " << device_id << endl;
-    abort();
+    return -1;
   }
 
   /** initialize BAR **/
@@ -214,7 +214,7 @@ int main(int argc, char *argv[]) {
   }
   catch (...) {
     cout << "ERROR: failed to initialize BAR0." << endl;
-    abort();
+    return -1;
   }
 
   /** initialize selected flash chip **/
@@ -224,7 +224,7 @@ int main(int argc, char *argv[]) {
   }
   catch (...) {
     cout << "ERROR: failed to initialize flash." << endl;
-    abort();
+    return -1;
   }
 
   /** set asynchronous read mode */
