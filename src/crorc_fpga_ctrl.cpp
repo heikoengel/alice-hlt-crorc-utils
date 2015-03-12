@@ -199,6 +199,7 @@ typedef struct {
   int diuInitRemoteDiu;
   int diuInitRemoteSiu;
   int dmaClearErrorFlags;
+  int gtxRxInit;
   tControlSet fan;
   tControlSet flowControl;
   tControlSet channelActive;
@@ -263,6 +264,7 @@ int main(int argc, char *argv[]) {
       {"gtxloopback", optional_argument, 0, 'L'},
       {"gtxreset", optional_argument, 0, 'R'},
       {"gtxrxeqmix", optional_argument, 0, 'M'},
+      {"gtxrxinit", no_argument, &(cmd.gtxRxInit), 1},
       {"gtxrxlosfsm", optional_argument, 0, 'o'},
       {"gtxrxreset", optional_argument, 0, 'e'},
       {"gtxstatus", no_argument, &(cmd.gtxStatus), 1},
@@ -733,6 +735,16 @@ int main(int argc, char *argv[]) {
 
     if (cmd.gtxClearCounters) {
       rorc->m_gtx[i]->clearErrorCounters();
+    }
+
+    if (cmd.gtxRxInit) {
+      int result = rorc->m_gtx[i]->rxInitialize();
+      if (result < 0) {
+        cerr << "Ch" << i << " failed to initialize GTX RX Interface" << endl;
+      } else {
+        cerr << "Ch" << i << " initialized GTX RX Interface after " << result
+             << " retires" << endl;
+      }
     }
 
     if (cmd.gtxStatus) {
