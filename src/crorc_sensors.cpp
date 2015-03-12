@@ -178,8 +178,9 @@ int main(int argc, char *argv[]) {
   try {
     dev = new librorc::device(deviceId);
   }
-  catch (...) {
-    std::cerr << "Failed to initialize device " <<  deviceId << std::endl;
+  catch (int e) {
+    std::cerr << "Failed to initialize device " << deviceId << ": "
+              << librorc::errMsg(e) << std::endl;
     return -1;
   }
 
@@ -187,8 +188,9 @@ int main(int argc, char *argv[]) {
   try {
     bar = new librorc::bar(dev, 1);
   }
-  catch (...) {
-    std::cerr << "Failed to initialize BAR 1" << std::endl;
+  catch (int e) {
+    std::cerr << "Failed to initialize BAR 1" << ": "
+              << librorc::errMsg(e)  << std::endl;
     delete dev;
     return -1;
   }
