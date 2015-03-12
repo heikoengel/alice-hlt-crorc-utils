@@ -742,8 +742,9 @@ int main(int argc, char *argv[]) {
       if (result < 0) {
         cerr << "Ch" << i << " failed to initialize GTX RX Interface" << endl;
       } else {
-        cerr << "Ch" << i << " initialized GTX RX Interface after " << result
+        cout << "Ch" << i << " initialized GTX RX Interface after " << result
              << " retires" << endl;
+        rorc->m_gtx[i]->clearErrorCounters();
       }
     }
 
