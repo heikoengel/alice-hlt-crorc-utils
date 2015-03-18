@@ -41,6 +41,7 @@ main
     uint32_t channel_number = 0xffffffff;
     int arg;
     int do_full_reset = 0;
+    int ret = 0;
 
     /** parse command line arguments */
     while ( (arg = getopt(argc, argv, "hn:c:f")) != -1 )
@@ -70,46 +71,33 @@ main
 
     if ( device_number < 0 || device_number > 255 )
     {
-        cout << "No or invalid device selected: " << device_number << endl;
+        cerr << "No or invalid device selected: " << device_number << endl;
         cout << HELP_TEXT;
         return -1;
     }
 
-    /** Instantiate device **/
+    /** Instantiate C-RORC **/
     librorc::device *dev = NULL;
-    try {
-      dev = new librorc::device(device_number);
-    } catch (int e) {
-      cout << "Failed to intialize device " << device_number
-           << ": " << librorc::errMsg(e) << endl;
-      return -1;
-    }
-
-    /** Instantiate a new bar */
     librorc::bar *bar = NULL;
-    try
-    {
-        bar = new librorc::bar(dev, 1);
-    }
-    catch(int e)
-    {
-        cout << "ERROR: failed to initialize BAR."
-             << ": " << librorc::errMsg(e) << endl;
-        delete dev;
-        return -1;
-    }
-
     librorc::sysmon *sm = NULL;
-    try
-    {
+
+    try {
+        dev = new librorc::device(device_number);
+        bar = new librorc::bar(dev, 1);
         sm = new librorc::sysmon(bar);
-    }
-    catch(...)
-    {
-        cout << "ERROR: failed to initialize System Manager." << endl;
-        delete bar;
-        delete dev;
-        return -1;
+    } catch (int e) {
+      cerr << "Failed to intialize device" << device_number
+           << ": " << librorc::errMsg(e) << endl;
+      if (sm) {
+          delete sm;
+      }
+      if (bar) {
+          delete bar;
+      }
+      if (dev) {
+          delete dev;
+      }
+      return -1;
     }
 
     sm->clearAllErrorCounters();
@@ -126,19 +114,30 @@ main
         uint32_t link_type = link->linkType();
         librorc::dma_channel *ch = new librorc::dma_channel(link);
 
-        librorc::gtx *gtx = new librorc::gtx(link);
-        if ( do_full_reset )
-        {
-            gtx->setReset(1);
-            usleep(1000);
-            gtx->setReset(0);
-            link->waitForGTXDomain();
-        }
+        if (link_type == RORC_CFG_LINK_TYPE_SIU ||
+                link_type == RORC_CFG_LINK_TYPE_DIU ||
+                link_type == RORC_CFG_LINK_TYPE_LINKTEST ) {
+            librorc::gtx *gtx = new librorc::gtx(link);
 
-        if(link->isGtxDomainReady()) {
+            bool clocks_ready = link->isGtxDomainReady() &&
+                                link->isDdlDomainReady();
+
+            if ( do_full_reset || !clocks_ready)
+            {
+                gtx->setReset(1);
+                usleep(1000);
+                gtx->setReset(0);
+                if (link->waitForGTXDomain() == -1) {
+                    cerr << "Device " << device_number << " GTX" << i
+                        << ": Clock failed to initialize correctly" << endl;
+                    ret = -1;
+                    continue;
+                }
+            }
+
             gtx->clearErrorCounters();
+            delete gtx;
         }
-        delete gtx;
 
         if(link->isDdlDomainReady())
         {
@@ -237,5 +236,9 @@ main
         delete link;
     }
 
-    return 0;
+    delete sm;
+    delete bar;
+    delete dev;
+
+    return ret;
 }
