@@ -39,6 +39,7 @@ using namespace std;
   "                        selected all module options are applied to both \n" \
   "                        modules\n"                                          \
   "-r|--modulereset [0,1]  set/unset module reset\n"                           \
+  "-I|--initmodule         (re)initialize module if reset or error state \n"   \
   "-t|--spd-timing         print SPD timing register values\n"                 \
   "-s|--controllerstatus   print controller initialization status\n"           \
   "Data Replay related:\n"                                                     \
@@ -79,6 +80,7 @@ int main(int argc, char *argv[]) {
   int sStatus = 0;
   int sReset = 0;
   uint32_t sResetVal = 0;
+  int sInitModule = 0;
 
   uint32_t deviceId = 0xffffffff;
   uint32_t moduleId = 0xffffffff;
@@ -111,6 +113,7 @@ int main(int argc, char *argv[]) {
       {"modulereset", required_argument, 0, 'r'},
       {"spd-timing", no_argument, 0, 't'},
       {"controllerstatus", no_argument, 0, 's'},
+      {"initmodule", no_argument, 0, 'I'},
       // Data Replay related
       {"channel", required_argument, 0, 'c'},
       {"file", required_argument, 0, 'f'},
@@ -126,7 +129,7 @@ int main(int argc, char *argv[]) {
 
   if (argc > 1) {
     while (1) {
-      int opt = getopt_long(argc, argv, "hn:m:r:tsc:f:O:C:e:DPR:WT:",
+      int opt = getopt_long(argc, argv, "hn:m:r:tsIc:f:O:C:e:DPR:WT:",
                             long_options, NULL);
       if (opt == -1) {
         break;
@@ -157,6 +160,10 @@ int main(int argc, char *argv[]) {
       case 's':
         isModuleOp = true;
         sStatus = 1;
+        break;
+      case 'I':
+        isModuleOp = true;
+        sInitModule = 1;
         break;
       case 'f':
         isChannelOp = true;
@@ -208,6 +215,11 @@ int main(int argc, char *argv[]) {
   } else {
     printf(HELP_TEXT);
     return -1;
+  }
+
+  if (sReset && sInitModule) {
+    cerr << "WARNING: --modulereset and --initmodule cannot be used at the "
+            "same time, --modulereset is ignored" << endl;
   }
 
   if (deviceId == 0xffffffff) {
@@ -262,11 +274,34 @@ int main(int argc, char *argv[]) {
 
     for (moduleId = moduleStartId; moduleId <= moduleEndId; moduleId++) {
       librorc::ddr3 *ddr = new librorc::ddr3(bar, moduleId);
+
       if (!ddr->isImplemented()) {
         cout << "No DDR3 Controller " << moduleId
              << " available in Firmware. Skipping..." << endl;
         continue;
       }
+
+      if (sInitModule) {
+        /**
+         * check module state first:
+         * - if in reset, just trigger reinitialization
+         * - if not initialized correctly, set reset and trigger
+         *   reinitialization
+         **/
+        uint32_t pre_reset_val = ddr->getReset();
+        if ((pre_reset_val != 0) || !ddr->initSuccessful()) {
+          if (pre_reset_val == 0) {
+            cout << "DDR3 C" << moduleId
+                 << " not initialized correctly, triggering reinitialization..."
+                 << endl;
+            ddr->setReset(1);
+            usleep(1000);
+          }
+          sReset = 1;
+          sResetVal = 0;
+        }
+      }
+
       if (sReset) {
         bool ensure_good = false;
         if(sResetVal==0 && ddr->getReset()==1) {
@@ -281,10 +316,10 @@ int main(int argc, char *argv[]) {
               usleep(DDR3_INIT_TIMEOUT_PERIOD);
             }
             if(timeout==0) {
-              cerr << "DDR3 C" << moduleId << " Initialization timeout." << endl;
+              cout << "DDR3 C" << moduleId << " Initialization timeout." << endl;
             }
             if (!ddr->initSuccessful()) {
-              cerr << "DDR3 C" << moduleId << " Initialization failed - retrying..."
+              cout << "DDR3 C" << moduleId << " Initialization failed - retrying..."
                    << endl;
               ddr->setReset(1);
               usleep(1000);
