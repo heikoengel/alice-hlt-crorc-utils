@@ -30,6 +30,9 @@ using namespace ::std;
 #define DATASOURCE_PG 2
 #define DATASOURCE_PCI 4
 
+#define LOG_HEX_DEC(x) hex << "0x" << (x) << "(" << dec << (x) << ")"
+#define LOG_DEC_HEX(x) dec << (x) << "(0x" << hex << (x) << ")" << dec
+
 void list_options(const struct option *long_options, int nargs) {
   cout << "Available arguments:" << endl;
   for (int i = 0; i < nargs; i++) {
@@ -178,6 +181,15 @@ void printMetric (uint32_t ch, const char *descr, const char* value, const char*
     cout << "Ch" << ch << " " << descr << ": " << value << unit << endl;
 }
 
+void print_dmastate(librorc::dma_channel *ch, uint32_t chId) {
+  cout << "Ch" << chId << " DMA Status" << endl
+       << "  Enabled      : " << ch->getEnable() << endl
+       << "  Event Count  : " << LOG_DEC_HEX(ch->eventCount()) << endl
+       << "  Stall Count  : " << LOG_DEC_HEX(ch->stallCount()) << endl
+       << "  Stall Flags  : " << ch->ptrStallFlags() << endl
+       << "  Rate Limit   : " << ch->rateLimit() << " Hz" << endl
+       << "  PCIe PKT Size: " << ch->pciePacketSize() << " Bytes" << endl;
+}
 
 typedef struct {
   bool set;
@@ -199,6 +211,7 @@ typedef struct {
   int diuInitRemoteDiu;
   int diuInitRemoteSiu;
   int dmaClearErrorFlags;
+  int dmaStatus;
   int gtxRxInit;
   tControlSet fan;
   tControlSet flowControl;
@@ -258,6 +271,7 @@ int main(int argc, char *argv[]) {
       {"diusendcmd", optional_argument, 0, 'C'},
       {"dmaclearerrorflags", no_argument, &(cmd.dmaClearErrorFlags), 1},
       {"dmaratelimit", optional_argument, 0, 't'},
+      {"dmastatus", no_argument, &(cmd.dmaStatus), 1},
       {"fan", optional_argument, 0, 'f'},
       {"flowcontrol", optional_argument, 0, 'B'},
       {"gtxclearcounters", no_argument, &(cmd.gtxClearCounters), 1},
@@ -859,6 +873,10 @@ int main(int argc, char *argv[]) {
 
     if (cmd.dmaClearErrorFlags) {
       rorc->m_ch[i]->readAndClearPtrStallFlags();
+    }
+
+    if (cmd.dmaStatus) {
+      print_dmastate(rorc->m_ch[i], i);
     }
 
     if (cmd.dmaRateLimit.get) {
