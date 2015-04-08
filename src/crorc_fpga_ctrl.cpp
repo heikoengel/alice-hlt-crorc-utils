@@ -187,7 +187,7 @@ void print_dmastate(librorc::dma_channel *ch, uint32_t chId) {
        << "  Stall Count  : " << LOG_DEC_HEX(ch->stallCount()) << endl
        << "  Stall Flags  : " << ch->ptrStallFlags() << endl
        << "  Rate Limit   : " << ch->rateLimit() << " Hz" << endl
-       << "  PCIe PKT Size: " << ch->pciePacketSize() << " Bytes" << endl;
+       << "  PCIe PKT Size: " << (ch->pciePacketSize()<<2) << " Bytes" << endl;
 }
 
 typedef struct {
