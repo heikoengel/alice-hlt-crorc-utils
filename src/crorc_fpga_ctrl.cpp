@@ -70,8 +70,7 @@ void print_gtxstate(uint32_t i, librorc::gtx *gtx) {
        << "\tTxDiffCtrl   : " << gtx->getTxDiffCtrl() << endl
        << "\tTxPreEmph    : " << gtx->getTxPreEmph() << endl
        << "\tTxPostEmph   : " << gtx->getTxPostEmph() << endl
-       << "\tTxEqMix      : " << gtx->getRxEqMix() << endl
-       << "\tRxDfeEye     : " << gtx->dfeEye() << " mV" << endl;
+       << "\tTxEqMix      : " << gtx->getRxEqMix() << endl;
   if (gtx->isDomainReady()) {
     cout << "\tDomain       : up" << endl;
     cout << "\tLink Up      : " << gtx->isLinkUp() << endl;
