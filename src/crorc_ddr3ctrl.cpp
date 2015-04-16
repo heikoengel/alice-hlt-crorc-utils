@@ -681,7 +681,7 @@ void printChannelStatus(uint32_t ChannelId, librorc::datareplaychannel *dr) {
        << "\tEnabled: " << dr->isEnabled() << endl;
 
   cout << "Channel " << ChannelId << " Status:" << endl
-       << "\tNext Address: " << hex << dr->nextAddress() << dec << endl
+       << "\tNext Address: 0x" << hex << dr->nextAddress() << dec << endl
        << "\tWaiting: " << dr->isWaiting() << endl << "\tDone: " << dr->isDone()
        << endl;
 }
