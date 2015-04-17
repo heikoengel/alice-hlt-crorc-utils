@@ -230,6 +230,7 @@ typedef struct {
   tControlSet gtxRxLosFsm;
   tControlSet ddlReset;
   tControlSet diuSendCommand;
+  tControlSet diuSendXOFF;
   tControlSet ddlFilterMask;
   tControlSet ddlFilterAll;
   tControlSet dmaRateLimit;
@@ -269,6 +270,7 @@ int main(int argc, char *argv[]) {
       {"diuinitremotediu", no_argument, &(cmd.diuInitRemoteDiu), 1},
       {"diuinitremotesiu", no_argument, &(cmd.diuInitRemoteSiu), 1},
       {"diusendcmd", optional_argument, 0, 'C'},
+      {"diusendxoff", optional_argument, 0, 'X'},
       {"dmaclearerrorflags", no_argument, &(cmd.dmaClearErrorFlags), 1},
       {"dmaratelimit", optional_argument, 0, 't'},
       {"dmastatus", no_argument, &(cmd.dmaStatus), 1},
@@ -500,6 +502,10 @@ int main(int argc, char *argv[]) {
 
       case 'A':
         cmd.ddlFilterAll = evalParam(optarg);
+        break;
+
+      case 'X':
+        cmd.diuSendXOFF = evalParam(optarg);
         break;
 
       case '?':
@@ -870,6 +876,22 @@ int main(int argc, char *argv[]) {
         cout << "Link" << i << " has no local DIU, cannot send command" << endl;
       }
     }
+
+    if (cmd.diuSendXOFF.get) {
+      if (rorc->m_diu[i] != NULL) {
+        cout << "Link" << i << " forced-XOFF: " << rorc->m_diu[i]->getForcedXoff()
+             << endl;
+      } else {
+        cout << "Link" << i << " has no local DIU, no last command" << endl;
+      }
+    } else if (cmd.diuSendXOFF.set) {
+      if (rorc->m_diu[i] != NULL) {
+        rorc->m_diu[i]->setForcedXoff(cmd.diuSendXOFF.value);
+      } else {
+        cout << "Link" << i << " has no local DIU, cannot send XOFF" << endl;
+      }
+    }
+
 
     if (cmd.dmaClearErrorFlags) {
       rorc->m_ch[i]->readAndClearPtrStallFlags();
