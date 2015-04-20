@@ -153,14 +153,15 @@ void __print_reg(struct reg reg, uint32_t val, const char *prefix, uint32_t ch) 
        << left << reg.name << ": " << HEXSTR(val, 8) << right << endl;
 }
 
-void printSgEntry(librorc::link *link, uint32_t ram_sel, uint32_t ram_addr) {
-  link->setPciReg(RORC_REG_SGENTRY_CTRL, ((ram_sel << 31) | ram_addr));
-  uint64_t sg_addr = (uint64_t)(link->pciReg(RORC_REG_SGENTRY_ADDR_HIGH)) << 32;
-  sg_addr |= link->pciReg(RORC_REG_SGENTRY_ADDR_LOW);
-  uint32_t sg_len = link->pciReg(RORC_REG_SGENTRY_LEN);
+void printSgEntry(librorc::dma_channel *ch, uint32_t ram_sel,
+                  uint32_t ram_addr) {
+  uint64_t sg_addr;
+  uint32_t sg_len;
+  ch->readSgListEntry(ram_sel, ram_addr, sg_addr, sg_len);
   const char *ramname = (ram_sel) ? "RBDM" : "EBDM";
-  cout << ramname << " RAM" << " entry " << HEXSTR(ram_addr, 4) << ": "
-       << HEXSTR(sg_addr, 16) << " " << HEXSTR(sg_len, 8) << endl;
+  cout << ramname << " RAM"
+       << " entry " << HEXSTR(ram_addr, 4) << ": " << HEXSTR(sg_addr, 16) << " "
+       << HEXSTR(sg_len, 8) << endl;
 }
 
 int main(int argc, char *argv[]) {
@@ -252,11 +253,11 @@ int main(int argc, char *argv[]) {
 
     /** print EBDM sglist */
     for (uint32_t i = 0; i <= ebdmNSgEntries; i++) {
-      printSgEntry(link, 0, i);
+      printSgEntry(ch , 0, i);
     }
     /** print RBDM sglist */
     for (uint32_t i = 0; i <= rbdmNSgEntries; i++) {
-      printSgEntry(link, 1, i);
+      printSgEntry(ch , 1, i);
     }
 
     delete link;
