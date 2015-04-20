@@ -249,7 +249,6 @@ int main(int argc, char *argv[]) {
     librorc::dma_channel *ch = new librorc::dma_channel(link);
     uint32_t ebdmNSgEntries = ch->getEBDMNumberOfSgEntries();
     uint32_t rbdmNSgEntries = ch->getRBDMNumberOfSgEntries();
-    delete ch;
 
     /** print EBDM sglist */
     for (uint32_t i = 0; i <= ebdmNSgEntries; i++) {
@@ -260,6 +259,7 @@ int main(int argc, char *argv[]) {
       printSgEntry(ch , 1, i);
     }
 
+    delete ch;
     delete link;
   }
 
