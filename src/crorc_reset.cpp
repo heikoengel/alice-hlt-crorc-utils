@@ -171,12 +171,11 @@ main
                 case RORC_CFG_LINK_TYPE_SIU:
                     {
                         librorc::siu *siu = new librorc::siu(link);
-                        siu->setReset(1);
+                        siu->setReset(0);
                         siu->setEnable(0);
                         siu->clearEventcount();
                         siu->clearDdlDeadtime();
                         siu->clearDmaDeadtime();
-                        siu->setReset(0);
                         delete siu;
                     }
                     break;
