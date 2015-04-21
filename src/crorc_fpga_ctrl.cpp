@@ -110,6 +110,7 @@ void print_ddlstate(uint32_t i, crorc *rorc) {
     }
     if (rorc->m_siu[i] != NULL) {
       cout << "\tLink Full   : " << rorc->m_siu[i]->linkFull() << endl;
+      cout << "\tLink Open   : " << rorc->m_siu[i]->linkOpen() << endl;
       cout << "\tEventcount  : " << rorc->m_siu[i]->getEventcount() << endl;
       cout << "\tDDL Deadtime: " << rorc->m_siu[i]->getDdlDeadtime() << endl;
       cout << "\tLast FECW   : 0x" << hex
