@@ -94,7 +94,7 @@ void print_ddlstate(uint32_t i, crorc *rorc) {
       cout << "\tLink Up     : " << rorc->m_diu[i]->linkUp() << endl;
       cout << "\tLink Full   : " << rorc->m_diu[i]->linkFull() << endl;
       cout << "\tEventcount  : " << rorc->m_diu[i]->getEventcount() << endl;
-      cout << "\tcur. Evtsize: " << rorc->m_diu[i]->eventSizeCounter() << endl;
+      cout << "\tWordcount   : " << rorc->m_diu[i]->totalWordsReceived() << endl;
       cout << "\tDDL Deadtime: " << rorc->m_diu[i]->getDdlDeadtime() << endl;
       cout << "\tLast Command: 0x" << hex << rorc->m_diu[i]->lastDiuCommand()
            << dec << endl;
@@ -112,6 +112,7 @@ void print_ddlstate(uint32_t i, crorc *rorc) {
       cout << "\tLink Full   : " << rorc->m_siu[i]->linkFull() << endl;
       cout << "\tLink Open   : " << rorc->m_siu[i]->linkOpen() << endl;
       cout << "\tEventcount  : " << rorc->m_siu[i]->getEventcount() << endl;
+      cout << "\tWordcount   : " << rorc->m_siu[i]->totalWordsTransmitted() << endl;
       cout << "\tDDL Deadtime: " << rorc->m_siu[i]->getDdlDeadtime() << endl;
       cout << "\tLast FECW   : 0x" << hex
            << rorc->m_siu[i]->lastFrontEndCommandWord() << dec << endl;
