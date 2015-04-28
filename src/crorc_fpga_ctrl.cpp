@@ -121,6 +121,8 @@ void print_ddlstate(uint32_t i, crorc *rorc) {
       cout << "\tIFFIFOFull    : " << rorc->m_siu[i]->isInterfaceFifoFull()
            << endl;
       cout << "\tSourceEmpty   : " << rorc->m_siu[i]->isSourceEmpty() << endl;
+      cout << "\tErrorFlags    : " << hex << rorc->m_siu[i]->errorFlags()
+           << dec <<endl;
     }
   } else {
     cout << "DDL" << i << " Clock DOWN!" << endl;
