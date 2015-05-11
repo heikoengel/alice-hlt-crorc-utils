@@ -51,6 +51,7 @@ using namespace std;
   "-O|--oneshot [0,1]      set/unset oneshot replay mode\n"                    \
   "-C|--continuous [0,1]   set/unset oneshot replay mode\n"                    \
   "-e|--enable [0,1]       set/unset replay channel enable\n"                  \
+  "-l|--limit [count]      set event limit for continuous replay\n"            \
   "-D|--disablereplay      disable replay gracefully\n"                        \
   "-P|--replaystatus       show replay channel status\n"                       \
   "-W|--wait               wait for non-continous replay to finish\n"          \
@@ -94,6 +95,8 @@ int main(int argc, char *argv[]) {
   uint32_t sContinuousVal = 0;
   int sSetChannelEnable = 0;
   uint32_t sChannelEnableVal = 0;
+  int sSetEventLimit = 0;
+  uint32_t sEventLimitVal = 0;
   int sSetDisableReplay = 0;
   int sSetReplayStatus = 0;
   int sSetChannelReset = 0;
@@ -120,6 +123,7 @@ int main(int argc, char *argv[]) {
       {"oneshow", required_argument, 0, 'O'},
       {"continuous", required_argument, 0, 'C'},
       {"enable", required_argument, 0, 'e'},
+      {"limit", required_argument, 0, 'L'},
       {"disablereplay", no_argument, 0, 'D'},
       {"replaystatus", no_argument, 0, 'P'},
       {"channelreset", no_argument, 0, 'R'},
@@ -129,7 +133,7 @@ int main(int argc, char *argv[]) {
 
   if (argc > 1) {
     while (1) {
-      int opt = getopt_long(argc, argv, "hn:m:r:tsIc:f:O:C:e:DPR:WT:",
+      int opt = getopt_long(argc, argv, "hn:m:r:tsIc:f:O:C:e:L:DPR:WT:",
                             long_options, NULL);
       if (opt == -1) {
         break;
@@ -184,6 +188,11 @@ int main(int argc, char *argv[]) {
         isChannelOp = true;
         sSetChannelEnable = 1;
         sChannelEnableVal = strtol(optarg, NULL, 0);
+        break;
+      case 'L':
+        isChannelOp = true;
+        sSetEventLimit = 1;
+        sEventLimitVal = strtoul(optarg, NULL, 0);
         break;
       case 'D':
         isChannelOp = true;
@@ -395,7 +404,7 @@ int main(int argc, char *argv[]) {
 
   // any DataReplay related options set?
   if (sSetOneshot || sSetContinuous || sSetChannelEnable || sSetDisableReplay ||
-      sFileToDdr3 || sSetReplayStatus || sSetChannelReset) {
+      sFileToDdr3 || sSetReplayStatus || sSetChannelReset || sSetEventLimit ) {
 
     /**
      * now iterate over all selected channels
@@ -468,6 +477,10 @@ int main(int argc, char *argv[]) {
 
       if (sSetContinuous) {
         dr->setModeContinuous(sContinuousVal);
+      }
+
+      if (sSetEventLimit) {
+        dr->setEventLimit(sEventLimitVal);
       }
 
       if (sSetChannelEnable) {
