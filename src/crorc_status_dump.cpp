@@ -150,7 +150,7 @@ struct reg ddl_regs[] = {
 
 void __print_reg(struct reg reg, uint32_t val, const char *prefix, uint32_t ch) {
   cout << "[" << prefix << ch << " " << setw(2) << right << reg.addr << "] " << setw(40)
-       << left << reg.name << ": " << HEXSTR(val, 8) << right << endl;
+       << left << reg.name << ": " << right << HEXSTR(val, 8) << endl;
 }
 
 void printSgEntry(librorc::dma_channel *ch, uint32_t ram_sel,
