@@ -186,13 +186,19 @@ void printMetric (uint32_t ch, const char *descr, const char* value, const char*
 }
 
 void print_dmastate(librorc::dma_channel *ch, uint32_t chId) {
-  cout << "Ch" << chId << " DMA Status" << endl
-       << "  Enabled      : " << ch->getEnable() << endl
-       << "  Event Count  : " << LOG_DEC_HEX(ch->eventCount()) << endl
-       << "  Stall Count  : " << LOG_DEC_HEX(ch->stallCount()) << endl
-       << "  Stall Flags  : " << ch->ptrStallFlags() << endl
-       << "  Rate Limit   : " << ch->rateLimit() << " Hz" << endl
-       << "  PCIe PKT Size: " << (ch->pciePacketSize()<<2) << " Bytes" << endl;
+  cout << "DMA Ch" << setw(2) << chId << " DMA: E=" << ch->getEnable()
+       << ", StallFlag:" << ch->ptrStallFlags()
+       << ", #Events:" << LOG_DEC_HEX(ch->eventCount())
+       << ", RateLimit:" << ch->rateLimit() << " Hz"
+       << ", PktSize:" << (ch->pciePacketSize()<<2) << " Bytes" << endl;
+  cout << "DMA Ch" << setw(2) << chId << " DMA: B=" << ch->getDMABusy()
+       << " EB_SW=" << LOG_DEC_HEX(ch->getEBOffset())
+       << " EB_DMA=" << LOG_DEC_HEX(ch->getEBDMAOffset())
+       << " EB_SIZE=" << LOG_DEC_HEX(ch->getEBSize())
+       << " RB_SW=" << LOG_DEC_HEX(ch->getRBOffset())
+       << " RB_DMA=" << LOG_DEC_HEX(ch->getRBDMAOffset())
+       << " RB_SIZE=" << LOG_DEC_HEX(ch->getRBSize())
+       << endl;
 }
 
 typedef struct {
@@ -443,6 +449,7 @@ int main(int argc, char *argv[]) {
       case 'E':
         // channelactive
         cmd.channelActive = evalParam(optarg);
+        break;
 
       case 'a':
         // gtxtxreset
