@@ -33,6 +33,7 @@ using namespace std;
   "crorc_ddr3ctrl parameters:\n"                                               \
   "General:\n"                                                                 \
   "-h|--help               show this help\n"                                   \
+  "-v|--verbose            be verbose\n"                                       \
   "-n|--device [id]        select target device (required)\n"                  \
   "Module Status related:\n"                                                   \
   "-m|--module [0,1]       select target DDR3 module. If no module is \n"      \
@@ -68,8 +69,8 @@ uint32_t getNumberOfReplayChannels(librorc::bar *bar, librorc::sysmon *sm);
 int fileToRam(librorc::sysmon *sm, uint32_t channelId, const char *filename,
               uint32_t addr, bool is_last_event, uint32_t &next_addr);
 int waitForReplayDone(librorc::datareplaychannel *dr);
-void printChannelStatus(uint32_t ChannelId, librorc::datareplaychannel *dr);
-
+void printChannelStatus(uint32_t ChannelId, librorc::datareplaychannel *dr,
+                        int verbose);
 void printControllerStatus(librorc::ddr3 *ddr, librorc::sysmon *sm);
 void printSpdTiming(librorc::sysmon *sm, int moduleId);
 uint32_t getDataReplayStartAddress(uint32_t chId, uint32_t max_ctrl_size,
@@ -77,6 +78,7 @@ uint32_t getDataReplayStartAddress(uint32_t chId, uint32_t max_ctrl_size,
 
 int main(int argc, char *argv[]) {
   int ret = 0;
+  int verbose = 0;
   int sSpdTimings = 0;
   int sStatus = 0;
   int sReset = 0;
@@ -110,6 +112,7 @@ int main(int argc, char *argv[]) {
   static struct option long_options[] = {
       // General
       {"help", no_argument, 0, 'h'},
+      {"verbose", no_argument, 0, 'v'},
       {"device", required_argument, 0, 'n'},
       // Module Status related
       {"module", required_argument, 0, 'm'},
@@ -133,7 +136,7 @@ int main(int argc, char *argv[]) {
 
   if (argc > 1) {
     while (1) {
-      int opt = getopt_long(argc, argv, "hn:m:r:tsIc:f:O:C:e:L:DPR:WT:",
+      int opt = getopt_long(argc, argv, "hvn:m:r:tsIc:f:O:C:e:L:DPR:WT:",
                             long_options, NULL);
       if (opt == -1) {
         break;
@@ -143,6 +146,9 @@ int main(int argc, char *argv[]) {
       case 'h':
         printf(HELP_TEXT);
         return -1;
+      case 'v':
+        verbose = 1;
+        break;
       case 'n':
         deviceId = strtol(optarg, NULL, 0);
         break;
@@ -285,8 +291,10 @@ int main(int argc, char *argv[]) {
       librorc::ddr3 *ddr = new librorc::ddr3(bar, moduleId);
 
       if (!ddr->isImplemented()) {
-        cout << "No DDR3 Controller " << moduleId
-             << " available in Firmware. Skipping..." << endl;
+        if (verbose) {
+          cout << "No DDR3 Controller " << moduleId
+               << " available in Firmware. Skipping..." << endl;
+        }
         continue;
       }
 
@@ -300,9 +308,11 @@ int main(int argc, char *argv[]) {
         uint32_t pre_reset_val = ddr->getReset();
         if ((pre_reset_val != 0) || !ddr->initSuccessful()) {
           if (pre_reset_val == 0) {
-            cout << "DDR3 C" << moduleId
-                 << " not initialized correctly, triggering reinitialization..."
-                 << endl;
+            if (verbose) {
+              cout << "DDR3 C" << moduleId
+                   << " not initialized correctly, triggering reinitialization..."
+                   << endl;
+            }
             ddr->setReset(1);
             usleep(1000);
           }
@@ -324,12 +334,14 @@ int main(int argc, char *argv[]) {
               timeout--;
               usleep(DDR3_INIT_TIMEOUT_PERIOD);
             }
-            if(timeout==0) {
+            if(timeout==0 && verbose) {
               cout << "DDR3 C" << moduleId << " Initialization timeout." << endl;
             }
             if (!ddr->initSuccessful()) {
-              cout << "DDR3 C" << moduleId << " Initialization failed - retrying..."
-                   << endl;
+              if (verbose) {
+                cout << "DDR3 C" << moduleId << " Initialization failed - "
+                     << "retrying..." << endl;
+              }
               ddr->setReset(1);
               usleep(1000);
               ddr->setReset(0);
@@ -422,7 +434,7 @@ int main(int argc, char *argv[]) {
       librorc::link *link = new librorc::link(bar, chId);
 
       if (!link->isDdlDomainReady()) {
-        cout << "WARNING: Channel " << chId << " clock not ready - skipping..."
+        cerr << "WARNING: Channel " << chId << " clock not ready - skipping..."
              << endl;
         delete link;
         continue;
@@ -434,7 +446,7 @@ int main(int argc, char *argv[]) {
       if (sFileToDdr3) {
 
         if (!module_ready[controllerId]) {
-          cout << "DDR3 Controller/Module " << controllerId
+          cerr << "DDR3 Controller/Module " << controllerId
                << " not ready or not available - skipping Ch " << chId << "."
                << endl;
           continue;
@@ -462,8 +474,10 @@ int main(int argc, char *argv[]) {
           perror("Failed to load File to RAM");
         } else {
           dr->setStartAddress(ddr3_ch_start_addr);
-          cout << "Ch " << chId << ": wrote " << list_of_filenames.size()
-               << " file(s) to RAM." << endl;
+          if (verbose) {
+            cout << "Ch " << chId << ": wrote " << list_of_filenames.size()
+                 << " file(s) to RAM." << endl;
+          }
         }
       }
 
@@ -518,7 +532,7 @@ int main(int argc, char *argv[]) {
       } // sSetDisableReplay
 
       if (sSetReplayStatus) {
-        printChannelStatus(chId, dr);
+        printChannelStatus(chId, dr, verbose);
       }
       delete dr;
       delete link;
@@ -527,7 +541,9 @@ int main(int argc, char *argv[]) {
   }   // any DataReplay related options set
 
   if (sSetWait) {
-    cout << "Waiting..." << endl;
+    if (verbose) {
+      cout << "Waiting..." << endl;
+    }
     bool replayDone[endChannel];
     bool allDone = false;
     struct timeval start, now;
@@ -561,7 +577,9 @@ int main(int argc, char *argv[]) {
 
     for (int i = startChannel; i <= endChannel; i++) {
       if (replayDone[i]) {
-        cout << "Ch" << i << " Replay done." << endl;
+        if (verbose) {
+          cout << "Ch" << i << " Replay done." << endl;
+        }
       } else {
         cerr << "*** Ch" << i << " Replay Timeout! ***" << endl;
       }
@@ -590,7 +608,7 @@ uint64_t getDdr3ModuleCapacity(librorc::sysmon *sm, uint8_t module_number) {
     uint8_t pb_width = 8 * (1 << (mod_width & 0x7));
     total_cap = sd_cap / 8 * pb_width / dev_width * n_ranks;
   } catch (...) {
-    cout << "WARNING: Failed to read from DDR3 SPD on SO-DIMM "
+    cerr << "WARNING: Failed to read from DDR3 SPD on SO-DIMM "
          << (uint32_t)module_number << endl << "Is a module installed?" << endl;
     total_cap = 0;
   }
@@ -685,18 +703,36 @@ int waitForReplayDone(librorc::datareplaychannel *dr) {
 /**
  * print the status of a replay channel
  **/
-void printChannelStatus(uint32_t ChannelId, librorc::datareplaychannel *dr) {
-  cout << "Channel " << ChannelId << " Config:" << endl << "\tStart Address: 0x"
-       << hex << dr->startAddress() << dec << endl
-       << "\tReset: " << dr->isInReset() << endl
-       << "\tContinuous: " << dr->isContinuousEnabled() << endl
-       << "\tOneshot: " << dr->isOneshotEnabled() << endl
-       << "\tEnabled: " << dr->isEnabled() << endl;
+void printChannelStatus(uint32_t ChannelId, librorc::datareplaychannel *dr,
+                        int verbose) {
+  if (verbose) {
+    cout << "Channel " << ChannelId << " Config:" << endl
+         << "\tStart Address: 0x" << hex << dr->startAddress() << dec << endl
+         << "\tReset: " << dr->isInReset() << endl
+         << "\tContinuous: " << dr->isContinuousEnabled() << endl
+         << "\tOneshot: " << dr->isOneshotEnabled() << endl
+         << "\tEnabled: " << dr->isEnabled() << endl
+         << "\tEvent Limit: " << dr->eventLimit() << endl;
+    cout << "Channel " << ChannelId << " Status:" << endl
+         << "\tNext Address: 0x" << hex << dr->nextAddress() << dec << endl
+         << "\tWaiting: " << dr->isWaiting() << endl << "\tDone: " << dr->isDone()
+         << endl;
+  } else {
+    cout << "Ch" << setw(2) << ChannelId << " CFG -"
+         << " R:" << dr->isInReset()
+         << " E:" << dr->isEnabled()
+         << " O:" << dr->isOneshotEnabled()
+         << " C:" << dr->isContinuousEnabled()
+         << " StartAddr:0x" << hex << setw(8) << setfill('0') << dr->startAddress()
+         << " L:" << dec << dr->eventLimit()
+         << setfill(' ') << endl;
 
-  cout << "Channel " << ChannelId << " Status:" << endl
-       << "\tNext Address: 0x" << hex << dr->nextAddress() << dec << endl
-       << "\tWaiting: " << dr->isWaiting() << endl << "\tDone: " << dr->isDone()
-       << endl;
+    cout << "Ch" << setw(2) << ChannelId << " STS -"
+         << " Done:" << dr->isDone()
+         << " Waiting:" << dr->isWaiting()
+         << " NextAddr:0x" << hex << setw(8) << setfill('0') << dr->nextAddress()
+         << dec << setfill(' ') << endl;
+  }
 }
 
 /**
