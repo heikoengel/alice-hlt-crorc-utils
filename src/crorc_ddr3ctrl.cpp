@@ -498,6 +498,9 @@ int main(int argc, char *argv[]) {
       }
 
       if (sSetChannelEnable) {
+        if(sChannelResetVal==1) {
+          link->setDataSourceDdr3DataReplay();
+        }
         dr->setEnable(sChannelEnableVal);
       }
 
