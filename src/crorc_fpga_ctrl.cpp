@@ -551,8 +551,14 @@ int main(int argc, char *argv[]) {
     for (uint32_t idx = 0; idx < 32; idx++) {
       try {
         dev = new librorc::device(idx);
-      }
-      catch (...) {
+      } catch (int e) {
+        if (e != LIBRORC_DEVICE_ERROR_PDADEV_FAILED) {
+          cerr << "Failed to initizalize device " << idx << ": "
+               << librorc::errMsg(e) << endl;
+          return -1;
+        } else if (idx == 0) {
+            cout << "No C-RORC found." << endl;
+        }
         return 0;
       }
 
@@ -563,19 +569,17 @@ int main(int argc, char *argv[]) {
 
       try {
         bar = new librorc::bar(dev, 1);
-      }
-      catch (...) {
-        cout << " - BAR1 access failed!" << endl;
-        delete dev;
-        return -1;
-      }
-
-      try {
         sm = new librorc::sysmon(bar);
       }
-      catch (...) {
-        cout << " - Sysmon access failed!" << endl;
-        delete bar;
+      catch (int e) {
+        cerr << "Failed to intialize device " << idx
+             << ": " << librorc::errMsg(e) << endl;
+        if (sm) {
+            delete sm;
+        }
+        if (bar) {
+            delete bar;
+        }
         delete dev;
         return -1;
       }
