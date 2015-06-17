@@ -378,6 +378,11 @@ int main(int argc, char *argv[]) {
 
     uint32_t nchannels = getNumberOfReplayChannels(bar, sm);
 
+    if (nchannels == 0) {
+        /* no replay channels available (e.g. HLT_OUT...) */
+        return 0;
+    }
+
     if (channelId == 0xffffffff) {
       startChannel = 0;
       endChannel = nchannels - 1;
