@@ -157,7 +157,7 @@ main
                         diu->setReset(0);
                         delete diu;
 
-                        if( firmware_type == RORC_CFG_PROJECT_hlt_in_fcf )
+                        if( link->fastClusterFinderAvailable() )
                         {
                             librorc::fastclusterfinder *fcf = 
                                 new librorc::fastclusterfinder(link);
