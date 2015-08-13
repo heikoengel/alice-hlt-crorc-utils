@@ -114,6 +114,15 @@ main
         uint32_t link_type = link->linkType();
         librorc::dma_channel *ch = new librorc::dma_channel(link);
 
+        link->setChannelActive(0);
+        link->setFlowControlEnable(0);
+        ch->disable();
+        ch->clearStallCount();
+        ch->clearEventCount();
+        ch->readAndClearPtrStallFlags();
+        ch->setRateLimit(0);
+
+
         if (link_type == RORC_CFG_LINK_TYPE_SIU ||
                 link_type == RORC_CFG_LINK_TYPE_DIU ||
                 link_type == RORC_CFG_LINK_TYPE_LINKTEST ) {
@@ -222,14 +231,6 @@ main
                 delete filter;
             }
         }
-
-        link->setChannelActive(0);
-        link->setFlowControlEnable(0);
-        ch->disable();
-        ch->clearStallCount();
-        ch->clearEventCount();
-        ch->readAndClearPtrStallFlags();
-        ch->setRateLimit(0);
 
         delete ch;
         delete link;
