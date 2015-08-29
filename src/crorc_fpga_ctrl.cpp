@@ -218,8 +218,10 @@ typedef struct {
   int ddlClearCounters;
   int refclkReset;
   int ddlStatus;
+  int ddlDeadtime;
   int diuInitRemoteDiu;
   int diuInitRemoteSiu;
+  int diuLastIFSTW;
   int dmaClearErrorFlags;
   int dmaStatus;
   int gtxRxInit;
@@ -276,11 +278,13 @@ int main(int argc, char *argv[]) {
       {"ddlfiltermask", optional_argument, 0, 'F'},
       {"ddlreset", optional_argument, 0, 'd'},
       {"ddlstatus", no_argument, &(cmd.ddlStatus), 1},
+      {"ddldeadtime", no_argument, &(cmd.ddlDeadtime), 1},
       {"device", required_argument, 0, 'n'},
       {"diuinitremotediu", no_argument, &(cmd.diuInitRemoteDiu), 1},
       {"diuinitremotesiu", no_argument, &(cmd.diuInitRemoteSiu), 1},
       {"diusendcmd", optional_argument, 0, 'C'},
       {"diusendxoff", optional_argument, 0, 'X'},
+      {"diulastifstw", no_argument, &(cmd.diuLastIFSTW), 1},
       {"dmaclearerrorflags", no_argument, &(cmd.dmaClearErrorFlags), 1},
       {"dmaratelimit", optional_argument, 0, 't'},
       {"dmastatus", no_argument, &(cmd.dmaStatus), 1},
@@ -855,6 +859,12 @@ int main(int argc, char *argv[]) {
       print_ddlstate(i, rorc);
     }
 
+    if (cmd.ddlDeadtime) {
+      if (rorc->m_diu[i] != NULL) {
+        cout << rorc->m_diu[i]->getDdlDeadtime() << endl;
+      }
+    }
+
     if (cmd.diuInitRemoteDiu) {
       if (rorc->m_diu[i] != NULL) {
         if (rorc->m_diu[i]->prepareForDiuData()) {
@@ -907,6 +917,15 @@ int main(int argc, char *argv[]) {
       }
     }
 
+    if (cmd.diuLastIFSTW) {
+      if (rorc->m_diu[i] != NULL) {
+        uint32_t lastIFSTW = rorc->m_diu[i]->lastInterfaceStatusWord();
+        cout << "Link " << i << " last IFSTW: 0x" << hex << lastIFSTW
+             << dec << endl;
+      } else {
+        cout << "Link" << i << " has no local DIU so no last IFSTW" << endl;
+      }
+    }
 
     if (cmd.dmaClearErrorFlags) {
       rorc->m_ch[i]->readAndClearPtrStallFlags();
