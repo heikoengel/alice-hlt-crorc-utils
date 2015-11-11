@@ -70,7 +70,7 @@ void print_gtxstate(uint32_t i, librorc::gtx *gtx) {
        << "\tTxDiffCtrl   : " << gtx->getTxDiffCtrl() << endl
        << "\tTxPreEmph    : " << gtx->getTxPreEmph() << endl
        << "\tTxPostEmph   : " << gtx->getTxPostEmph() << endl
-       << "\tTxEqMix      : " << gtx->getRxEqMix() << endl;
+       << "\tRxEqMix      : " << gtx->getRxEqMix() << endl;
   if (gtx->isDomainReady()) {
     cout << "\tDomain       : up" << endl;
     cout << "\tLink Up      : " << gtx->isLinkUp() << endl;
@@ -201,6 +201,22 @@ void print_dmastate(librorc::dma_channel *ch, uint32_t chId) {
        << endl;
 }
 
+void drpUpdateField(librorc::gtx *gtx, uint8_t drp_addr, uint16_t field_data,
+                    uint16_t field_bit, uint16_t field_width) {
+  // read current value at drp_addr
+  uint16_t drp_data_orig = gtx->drpRead(drp_addr);
+  uint16_t bitmask = (((uint32_t)1) << field_width) - 1;
+  // clear previous field data
+  uint16_t drp_data_new = drp_data_orig & ~(bitmask << field_bit);
+  // set new field data at field_bit
+  drp_data_new |= ((field_data & bitmask) << field_bit);
+  // write new  register value back to drp_addr
+  if (drp_data_orig != drp_data_new) {
+    gtx->drpWrite(drp_addr, drp_data_new);
+    gtx->drpRead(0);
+  }
+}
+
 typedef struct {
   bool set;
   bool get;
@@ -240,6 +256,8 @@ typedef struct {
   tControlSet gtxTxpreemph;
   tControlSet gtxTxpostemph;
   tControlSet gtxRxLosFsm;
+  tControlSet gtxRxTerm;
+  tControlSet gtxRxAcCapDisable;
   tControlSet ddlReset;
   tControlSet diuSendCommand;
   tControlSet diuSendXOFF;
@@ -296,6 +314,8 @@ int main(int argc, char *argv[]) {
       {"gtxrxeqmix", optional_argument, 0, 'M'},
       {"gtxrxinit", no_argument, &(cmd.gtxRxInit), 1},
       {"gtxrxlosfsm", optional_argument, 0, 'o'},
+      {"gtxrxterm", optional_argument, 0, 'p'},
+      {"gtxrxaccapdisable", optional_argument, 0, 'q'},
       {"gtxrxreset", optional_argument, 0, 'e'},
       {"gtxstatus", no_argument, &(cmd.gtxStatus), 1},
       {"gtxtxdiffctrl", optional_argument, 0, 'D'},
@@ -493,6 +513,27 @@ int main(int argc, char *argv[]) {
       case 'o':
         // gtxrxlosfsm
         cmd.gtxRxLosFsm = evalParam(optarg);
+        break;
+
+      case 'p':
+        // gtxrxterm
+        cmd.gtxRxTerm = evalParam(optarg);
+        if (cmd.gtxRxTerm.set &&
+            (cmd.gtxRxTerm.value < 0 || cmd.gtxRxTerm.value > 2)) {
+          cerr << "Invalid GTX RX Term Value " << cmd.gtxRxTerm.value
+               << ", allowed: 0,1,2" << endl;
+          return -1;
+        }
+        break;
+
+      case 'q':
+        // gtxrxaccapdisable
+        cmd.gtxRxAcCapDisable = evalParam(optarg);
+        if (cmd.gtxRxAcCapDisable.set && cmd.gtxRxAcCapDisable.value > 1) {
+          cerr << "Invalid GTX RX AC_CAP_DIS Value "
+               << cmd.gtxRxAcCapDisable.value << ", allows: 0,1" << endl;
+          return -1;
+        }
         break;
 
       case 'd':
@@ -697,6 +738,13 @@ int main(int argc, char *argv[]) {
     rorc->m_refclk->reset();
   }
 
+
+  // GTX-DRP setters require GTX and QSFP to be in reset
+  if (cmd.gtxRxTerm.set || cmd.gtxRxAcCapDisable.set) {
+    rorc->setAllGtxReset(1);
+    rorc->setAllQsfpReset(1);
+  }
+
   // iterate over all or selectedGTX instances
   for (int32_t i = gtx_start; i <= gtx_end; i++) {
 
@@ -772,6 +820,37 @@ int main(int argc, char *argv[]) {
       rorc->m_gtx[i]->drpWrite(0x04, state);
     }
 
+    if (cmd.gtxRxTerm.get) {
+      uint16_t state = rorc->m_gtx[i]->drpRead(0x2e);
+      uint16_t term = ((state >> 7) & 0x03);
+      const char *termstr = NULL;
+      switch (term) {
+      case 0:
+        termstr = "FLOAT (0)";
+        break;
+      case 1:
+        termstr = "GND (1)";
+        break;
+      case 2:
+        termstr = "MGTAVTT (2)";
+        break;
+      default:
+        termstr = "INVALID (3)";
+        break;
+      }
+      cout << "Ch" << i << " GTX RX Termination: " << termstr << endl;
+    } else if (cmd.gtxRxTerm.set) {
+      drpUpdateField(rorc->m_gtx[i], 0x2e, cmd.gtxRxTerm.value, 7, 2);
+    }
+
+    if (cmd.gtxRxAcCapDisable.get) {
+      uint16_t state = ((rorc->m_gtx[i]->drpRead(0x17) >> 4) & 0x01);
+      cout << "Ch" << i << " GTX AC_CAP_DIS=" << ((state) ? "TRUE" : "FALSE")
+           << endl;
+    } else if (cmd.gtxRxAcCapDisable.set) {
+      drpUpdateField(rorc->m_gtx[i], 0x17, cmd.gtxRxAcCapDisable.value, 4, 1);
+    }
+
     if (cmd.gtxClearCounters) {
       rorc->m_gtx[i]->clearErrorCounters();
     }
@@ -791,6 +870,13 @@ int main(int argc, char *argv[]) {
       print_gtxstate(i, rorc->m_gtx[i]);
     }
   }
+
+  // release resets for GTX-DRP setters
+  if (cmd.gtxRxTerm.set || cmd.gtxRxAcCapDisable.set) {
+    rorc->setAllGtxReset(0);
+    rorc->setAllQsfpReset(0);
+  }
+
 
   // iterate over all or selected DMA channels
   for (int32_t i = ch_start; i <= ch_end; i++) {
