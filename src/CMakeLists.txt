@@ -7,6 +7,7 @@ SET( UTIL_LIST
   crorc_sensors
   crorc_free_buffers
   crorc_push_file
+  crorc_dma_benchmark
   crorc_status_dump )
 
 FOREACH( UTIL ${UTIL_LIST} )
