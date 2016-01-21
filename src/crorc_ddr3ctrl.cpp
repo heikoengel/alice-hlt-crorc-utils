@@ -75,6 +75,9 @@ void printControllerStatus(librorc::ddr3 *ddr, librorc::sysmon *sm);
 void printSpdTiming(librorc::sysmon *sm, int moduleId);
 uint32_t getDataReplayStartAddress(uint32_t chId, uint32_t max_ctrl_size,
                                    uint32_t module_size);
+uint32_t getDataReplayMaxAddress(uint32_t chId, uint32_t max_ctrl_size,
+                                   uint32_t module_size);
+
 
 int main(int argc, char *argv[]) {
   int ret = 0;
@@ -459,6 +462,8 @@ int main(int argc, char *argv[]) {
         int ret = 0;
         uint32_t ddr3_ch_start_addr = getDataReplayStartAddress(
             chId, max_ctrl_size[controllerId], module_size[controllerId]);
+        uint32_t ddr3_ch_max_addr = getDataReplayMaxAddress(
+            chId, max_ctrl_size[controllerId], module_size[controllerId]);
         uint32_t next_addr = ddr3_ch_start_addr;
         vector<string>::iterator iter, end;
         iter = list_of_filenames.begin();
@@ -470,13 +475,22 @@ int main(int argc, char *argv[]) {
           const char *filename = (*iter).c_str();
           ret = fileToRam(sm, chId, filename, next_addr, is_last_event,
                           next_addr);
+          if (next_addr > ddr3_ch_max_addr) {
+            int idx = (iter - list_of_filenames.begin()) + 1;
+            size_t overlap = (next_addr - ddr3_ch_max_addr) * 8; // 8B per addr
+            cerr << "ERROR: Channel " << chId << ", Input file no. " << idx
+                 << " (" << filename << ") - Replay data exceeds channel "
+                 << "storage capacity by " << overlap << " Bytes ("
+                 << (overlap >> 20) << " MB)." << endl;
+            ret = -1;
+          }
           if (ret) {
             break;
           }
           ++iter;
         }
         if (ret) {
-          perror("Failed to load File to RAM");
+          cerr << "ERROR: Failed to load File to RAM" << endl;
         } else {
           dr->setStartAddress(ddr3_ch_start_addr);
           if (verbose) {
@@ -870,4 +884,13 @@ uint32_t getDataReplayStartAddress(uint32_t chId, uint32_t max_ctrl_size,
   } else {
     return module_ch * (max_ctrl_size >> 6);
   }
+}
+
+uint32_t getDataReplayMaxAddress(uint32_t chId, uint32_t max_ctrl_size,
+                                 uint32_t module_size) {
+  uint32_t firstModuleChannel = (chId < 6) ? 0 : 6;
+  uint32_t channelRange = getDataReplayStartAddress(firstModuleChannel + 1,
+                                                  max_ctrl_size, module_size);
+  return getDataReplayStartAddress(chId, max_ctrl_size, module_size) +
+         channelRange - 1;
 }
