@@ -80,6 +80,7 @@ int main(int argc, char *argv[]) {
       {"fcfmapping", required_argument, 0, 'm'},
       {"tpcpatch", required_argument, 0, 'p'},
       {"dump", required_argument, 0, 'd'},
+      {"reffile", required_argument, 0, 'f'},
       {"help", no_argument, 0, 'h'},
       {0, 0, 0, 0}};
 
@@ -126,23 +127,26 @@ int main(int argc, char *argv[]) {
       dumpDir = optarg;
       break;
     case 'h':
-      cout << argv[0] << " command line parameters: " << endl;
-      for (size_t i = 0; i < (sizeof(long_options) / sizeof(struct option) - 1);
-           i++) {
-        struct option cur = long_options[i];
-        cout << "  ";
-        if (cur.val != 0) {
-          cout << "-" << char(cur.val) << "/";
-        }
-        cout << "--" << cur.name;
-        if (cur.has_arg == required_argument) {
-          cout << " [arg]";
-        } else if (cur.has_arg == optional_argument) {
-          cout << " ([arg])";
-        }
-        cout << endl;
+      {
+	cout << argv[0] << " command line parameters: " << endl;
+	int long_opt_count = (sizeof(long_options) / sizeof(struct option)) - 1;
+	for (int i = 0; i < long_opt_count; i++) {
+	  struct option cur = long_options[i];
+	  cout << "  ";
+	  if (cur.val != 0) {
+	    cout << "-" << char(cur.val) << "/";
+	  }
+	  cout << "--" << cur.name;
+	  if (cur.has_arg == required_argument) {
+	    cout << " [arg]";
+	  } else if (cur.has_arg == optional_argument) {
+	    cout << " ([arg])";
+	  }
+	  cout << endl;
+	}
       }
       return 0;
+      break;
     default:
       return -1;
       break;
@@ -433,6 +437,8 @@ void printStatusLine(librorc::ChannelStatus *cs_cur,
   uint64_t bytes_diff = cs_cur->bytes_received - cs_last->bytes_received;
   float mbytes_rate = (bytes_diff * 1000000.0) / tdiff_us / (float)(1 << 20);
   float total_receiced_GB = (cs_cur->bytes_received / (float)(1 << 30));
+  cout.precision(2);
+  cout.setf( ios::fixed, ios::floatfield );
   cout << "Ch" << cs_cur->channel << " -  #Events: " << cs_cur->n_events
        << ", Size: " << total_receiced_GB << " GB, ";
   if (events_diff) {

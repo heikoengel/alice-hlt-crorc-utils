@@ -66,6 +66,7 @@ int event_checker::addRefFile(char *filename) {
   entry.map = map;
   entry.size = refstat.st_size;
   m_refList.push_back(entry);
+  m_refListIter = m_refList.begin();
   return 0;
 }
 
