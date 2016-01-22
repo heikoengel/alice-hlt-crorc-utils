@@ -441,6 +441,11 @@ int main(int argc, char *argv[]) {
       /** create link instance */
       librorc::link *link = new librorc::link(bar, chId);
 
+      if (link->linkType() == RORC_CFG_LINK_TYPE_VIRTUAL) {
+	delete link;
+	continue;
+      }
+
       if (!link->isDdlDomainReady()) {
         cerr << "WARNING: Channel " << chId << " clock not ready - skipping..."
              << endl;
@@ -548,7 +553,7 @@ int main(int argc, char *argv[]) {
 
           // wait for OneShot replay to complete
           if (waitForReplayDone(dr) < 0) {
-            cout << "Timeout waiting for Replay-Done, skipping..." << endl;
+            cout << "Channel " << chId << " Timeout waiting for Replay-Done, skipping..." << endl;
           } else {
             // we are now at the end of an event, so it's safe to disable the
             // channel
