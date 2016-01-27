@@ -669,6 +669,7 @@ int fileToRam(librorc::sysmon *sm, uint32_t channelId, const char *filename,
 
   uint32_t *event = (uint32_t *)mmap(NULL, fd_in_stat.st_size, PROT_READ,
                                      MAP_SHARED, fd_in, 0);
+  close(fd_in);
   if (event == MAP_FAILED) {
     cerr << "ERROR: failed to mmap input file" << filename << endl;
     return -1;
@@ -702,11 +703,11 @@ int fileToRam(librorc::sysmon *sm, uint32_t channelId, const char *filename,
          << ") while writing event to RAM:" << endl << "File " << filename
          << " Channel " << channelId << " Addr " << hex << addr << dec
          << " LastEvent " << is_last_event << endl;
+    munmap(event, fd_in_stat.st_size);
     return -1;
   }
 
   munmap(event, fd_in_stat.st_size);
-  close(fd_in);
   return 0;
 }
 
