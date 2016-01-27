@@ -493,9 +493,18 @@ int main(int argc, char *argv[]) {
           cerr << "ERROR: Failed to load File to RAM" << endl;
         } else {
           dr->setStartAddress(ddr3_ch_start_addr);
+          uint64_t packets_to_ram = (next_addr - ddr3_ch_start_addr) / 8;
+          uint64_t payload_to_ram = packets_to_ram * 15 * 4;
+          uint64_t bytes_to_ram = packets_to_ram * 16 * 4;
+          uint32_t fill_state = 100 * (next_addr - ddr3_ch_start_addr) /
+                                (ddr3_ch_max_addr - ddr3_ch_start_addr);
+          uint64_t max_avg_rate =
+              list_of_filenames.size() * 212500000 / payload_to_ram;
           if (verbose) {
             cout << "Ch " << chId << ": wrote " << list_of_filenames.size()
-                 << " file(s) to RAM." << endl;
+                 << " file(s) to RAM using " << (bytes_to_ram >> 20) << " MB ("
+                 << fill_state << "%) - Max avg. rate: " << max_avg_rate
+                 << " Hz" << endl;
           }
         }
       }
