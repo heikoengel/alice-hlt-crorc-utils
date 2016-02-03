@@ -106,8 +106,6 @@ main
         channel_number : 0;
     uint32_t end_channel = sm->numberOfChannels()-1;
 
-    uint32_t firmware_type = sm->firmwareType();
-
     for ( uint32_t i=start_channel; i<=end_channel; i++ )
     {
         librorc::link *link = new librorc::link(bar, i);

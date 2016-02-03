@@ -218,7 +218,7 @@ int main(int argc, char *argv[]) {
   }
 
   /** print system monitor registers */
-  for (int i = 0; i < sizeof(sm_regs) / sizeof(reg); i++) {
+  for (size_t i = 0; i < sizeof(sm_regs) / sizeof(reg); i++) {
     PRINT_SM_REG(sm_regs[i]);
   }
 
@@ -227,20 +227,20 @@ int main(int argc, char *argv[]) {
     librorc::link *link = new librorc::link(bar, chId);
 
     /** print DMA registers */
-    for (int i = 0; i < sizeof(dma_ch_regs) / sizeof(reg); i++) {
+    for (size_t i = 0; i < sizeof(dma_ch_regs) / sizeof(reg); i++) {
       PRINT_DMA_CH_REG(dma_ch_regs[i], chId);
     }
 
     if (link->isGtxDomainReady()) {
       /** print GTX registers */
-      for (int i = 0; i < sizeof(gtx_regs) / sizeof(reg); i++) {
+      for (size_t i = 0; i < sizeof(gtx_regs) / sizeof(reg); i++) {
         PRINT_GTX_REG(gtx_regs[i], chId);
       }
     }
 
     if (link->isDdlDomainReady()) {
       /** print DDL registers */
-      for (int i = 0; i < sizeof(ddl_regs) / sizeof(reg); i++) {
+      for (size_t i = 0; i < sizeof(ddl_regs) / sizeof(reg); i++) {
         PRINT_DDL_REG(ddl_regs[i], chId);
       }
     }

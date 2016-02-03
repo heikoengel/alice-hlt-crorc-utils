@@ -371,7 +371,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  uint32_t startChannel, endChannel;
+  uint32_t startChannel = 0, endChannel = 0;
   uint64_t module_size[2] = {0, 0};
   uint64_t max_ctrl_size[2] = {0, 0};
   bool module_ready[2] = {false, false};
@@ -589,7 +589,7 @@ int main(int argc, char *argv[]) {
         delete link;
       }
       allDone = true;
-      for (int i = startChannel; i <= endChannel; i++) {
+      for (uint32_t i = startChannel; i <= endChannel; i++) {
         allDone &= replayDone[i];
       }
       if (sSetTimeout) {
@@ -606,7 +606,7 @@ int main(int argc, char *argv[]) {
       ret = -1;
     }
 
-    for (int i = startChannel; i <= endChannel; i++) {
+    for (uint32_t i = startChannel; i <= endChannel; i++) {
       if (replayDone[i]) {
         if (verbose) {
           cout << "Ch" << i << " Replay done." << endl;

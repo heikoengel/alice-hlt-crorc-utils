@@ -884,7 +884,6 @@ int main(int argc, char *argv[]) {
     if (cmd.dataSource.get) {
       printMetric(i, "Datasource", rorc->m_link[i]->getDataSourceDescr());
     } else if (cmd.dataSource.set) {
-      uint32_t mux = ((rorc->m_link[i]->ddlReg(RORC_REG_DDL_CTRL) >> 16) & 3);
       switch (rorc->m_linkType[i]) {
       case RORC_CFG_LINK_TYPE_VIRTUAL:
         cout << "Ch" << i << " cannot change datasource of a Raw-Copy channel."
