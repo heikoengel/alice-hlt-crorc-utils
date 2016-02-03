@@ -23,6 +23,8 @@
 #include <fcntl.h>
 #include <vector>
 #include "event_checker.hh"
+#include "file_writer.hh"
+#include "fcf_mapping.hh"
 
 using namespace std;
 
@@ -40,7 +42,7 @@ enum t_dataSource { DS_PG, DS_DDR3, DS_DIU, DS_SIU, DS_RAW };
 bool fileExists(char *filename);
 int configureDdl(librorc::event_stream *es, t_dataSource dataSource);
 void unconfigureDdl(librorc::event_stream *es, t_dataSource dataSource);
-int configureFcf(librorc::event_stream *es, char *fcfMappingFile);
+int configureFcf(librorc::event_stream *es, char *tpcRowMappingFile, uint32_t patch);
 void unconfigureFcf(librorc::event_stream *es);
 int configurePg(librorc::event_stream *es, uint32_t pgSize);
 void unconfigurePg(librorc::event_stream *es);
@@ -64,8 +66,10 @@ int main(int argc, char *argv[]) {
   int channelId = 0;
   t_dataSource dataSource = DS_DIU;
   char *refFile = NULL;
-  char *fcfMappingFile = NULL;
+  char *tpcRowMappingFile = NULL;
   uint32_t pgSize = 0x1000;
+  char *dumpDir = NULL;
+  uint32_t tpcPatch = 0;
   
   static struct option long_options[] = {
       {"device", required_argument, 0, 'n'},
@@ -74,11 +78,13 @@ int main(int argc, char *argv[]) {
       {"size", required_argument, 0, 'S'},
       {"source", required_argument, 0, 's'},
       {"fcfmapping", required_argument, 0, 'm'},
+      {"tpcpatch", required_argument, 0, 'p'},
+      {"dump", required_argument, 0, 'd'},
       {"help", no_argument, 0, 'h'},
       {0, 0, 0, 0}};
 
   int opt;
-  while ((opt = getopt_long(argc, argv, "n:c:f:S:s:m:h", long_options, NULL)) !=
+  while ((opt = getopt_long(argc, argv, "n:c:f:S:s:m:p:h", long_options, NULL)) !=
          -1) {
     switch (opt) {
     case 'n':
@@ -89,6 +95,9 @@ int main(int argc, char *argv[]) {
       break;
     case 'f':
       refFile = optarg;
+      break;
+    case 'p':
+      tpcPatch = strtoul(optarg, NULL, 0);
       break;
     case 's':
       if (strcmp(optarg, "diu") == 0) {
@@ -111,11 +120,15 @@ int main(int argc, char *argv[]) {
       pgSize = strtoul(optarg, NULL, 0);
       break;
     case 'm':
-      fcfMappingFile = optarg;
+      tpcRowMappingFile = optarg;
+      break;
+    case 'd':
+      dumpDir = optarg;
       break;
     case 'h':
       cout << argv[0] << " command line parameters: " << endl;
-      for (int i = 0; i < sizeof(long_options) / sizeof(struct option); i++) {
+      for (size_t i = 0; i < (sizeof(long_options) / sizeof(struct option) - 1);
+           i++) {
         struct option cur = long_options[i];
         cout << "  ";
         if (cur.val != 0) {
@@ -129,7 +142,7 @@ int main(int argc, char *argv[]) {
         }
         cout << endl;
       }
-      break;
+      return 0;
     default:
       return -1;
       break;
@@ -141,9 +154,19 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  if (fcfMappingFile && !fileExists(fcfMappingFile)) {
+  if (tpcRowMappingFile && !fileExists(tpcRowMappingFile)) {
     perror("Failed to access FCF mapping file: ");
     return -1;
+  }
+
+  file_writer *dumper = NULL;
+  if (dumpDir) {
+    try {
+      dumper = new file_writer(dumpDir, deviceId, channelId, 100);
+    } catch (int e) {
+      perror("ERROR initializing file writer:");
+      return -1;
+    }
   }
 
   librorc::event_stream *es = NULL;
@@ -195,7 +218,7 @@ int main(int argc, char *argv[]) {
   }
 
   // check if FCF exists and configure it
-  if (configureFcf(es, fcfMappingFile) < 0) {
+  if (configureFcf(es, tpcRowMappingFile, tpcPatch) < 0) {
     delete es;
     return -1;
   }
@@ -236,6 +259,9 @@ int main(int argc, char *argv[]) {
       if (checker->check(report, event, check_mask) != 0) {
 	es->m_channel_status->error_count++;
       }
+      if (dumper) {
+	dumper->dump(report, event);
+      }
       es->releaseEvent(reference);
     }
 
@@ -266,6 +292,9 @@ int main(int argc, char *argv[]) {
   unconfigureFcf(es);
   es->m_link->setDefaultDataSource();
 
+  if (dumper) {
+    delete dumper;
+  }
   delete checker;
   delete es;
   return 0;
@@ -315,7 +344,7 @@ void unconfigureDdl(librorc::event_stream *es, t_dataSource dataSource) {
   delete diu;
 }
 
-int configureFcf(librorc::event_stream *es, char *fcfMappingFile) {
+int configureFcf(librorc::event_stream *es, char *tpcRowMappingFile, uint32_t patch) {
   librorc::fastclusterfinder *fcf = es->getFastClusterFinder();
   if (!fcf) {
     // FCF doesn't exist on this channel, so nothing to configure
@@ -323,15 +352,27 @@ int configureFcf(librorc::event_stream *es, char *fcfMappingFile) {
   }
   fcf->setReset(1);
   fcf->setEnable(0);
-  fcf->setBypass((fcfMappingFile != NULL) ? 0 : 1);
+  fcf->setBypass((tpcRowMappingFile != NULL) ? 0 : 1);
   fcf->clearErrors();
-  if (fcfMappingFile) {
-    if (fcf->loadMappingRam(fcfMappingFile) < 0) {
-      cerr << "ERROR: failed to load FCF mapping file " << fcfMappingFile
+  if (tpcRowMappingFile) {
+    if (patch > 5) {
+      cerr << "ERROR: invalid TPC patch: " << patch << endl;
+      delete fcf;
+      return -1;
+    }
+    fcf_mapping map = fcf_mapping(patch);
+    if (map.readMappingFile(tpcRowMappingFile) < 0) {
+      cerr << "ERROR: Invalid TPC row mapping file: " << tpcRowMappingFile
            << endl;
       delete fcf;
       return -1;
     }
+    for (uint32_t i = 0; i < gkConfigWordCnt; i++) {
+      fcf->writeMappingRamEntry(i, map[i]);
+    }
+    fcf->setBypass(0);
+  } else {
+    fcf->setBypass(1);
   }
   fcf->setSinglePadSuppression(0);
   fcf->setBypassMerger(0);

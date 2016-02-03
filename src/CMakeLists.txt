@@ -25,6 +25,8 @@ INSTALL(TARGETS crorc_fpga_ctrl RUNTIME DESTINATION bin )
 
 ADD_EXECUTABLE( crorc_dma_in
   event_checker.cpp
+  file_writer.cpp
+  fcf_mapping.cpp
   crorc_dma_in.cpp)
 TARGET_LINK_LIBRARIES( crorc_dma_in ${LIBRORC} ${EXTRA_LIBS} )
 INSTALL(TARGETS crorc_dma_in RUNTIME DESTINATION bin )
