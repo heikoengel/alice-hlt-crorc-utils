@@ -42,12 +42,15 @@ int main(int argc, char *argv[]) {
   librorc::event_stream *es[12];
   librorc::patterngenerator *pg[12];
 
-  for (int i = 0; i < 12; i++) {
+  int max_channels = 12;
+  int i;
+
+  for (i = 0; i < max_channels; i++) {
     es[i] = NULL;
     pg[i] = NULL;
   }
   try {
-    for (int i = 0; i < 12; i++) {
+    for (i = 0; i < max_channels; i++) {
       cout << "Initializing Channel " << i << endl;
       es[i] = new librorc::event_stream(DEVICE_ID, i, librorc::kEventStreamToHost);
       pg[i] = es[i]->getPatternGenerator();
@@ -69,21 +72,23 @@ int main(int argc, char *argv[]) {
     }
   }
   catch (int e) {
-    cerr << "Failed to initialize event stream: "
-         << librorc::errMsg(e) << endl;
-    for (int i = 0; i < 12; i++) {
-      if (pg[i]) {
-        delete pg[i];
-      }
-      if (es[i]) {
-        delete es[i];
-      }
+    cout << "Channel " << i
+         << " failed event stream initialization: " << librorc::errMsg(e)
+         << endl << "Skipping this channel and all following." << endl;
+    max_channels = i + 1;
+    if (es[i]) {
+      delete es[i];
+      es[i] = NULL;
     }
+  }
+
+  if (max_channels == 1) {
+    cerr << "ERROR: No channel could be intialized - exiting!" << endl;
     return -1;
   }
 
   cout << "Starting PatternGenerators..." << endl;
-  for (int i = 0; i < 12; i++) {
+  for (i = 0; i < max_channels; i++) {
     pg[i]->enable();
   }
 
@@ -105,7 +110,7 @@ int main(int argc, char *argv[]) {
 
   while (!done) {
     gettimeofday(&tNow, NULL);
-    for (int i = 0; i < 12; i++) {
+    for (i = 0; i < max_channels; i++) {
       if (es[i]->getNextEvent(&report, &event, &librorcReference)) {
         es[i]->updateChannelStatus(report);
         totalBytes += (report->calc_event_size << 2);
@@ -116,14 +121,14 @@ int main(int argc, char *argv[]) {
     if (tdiff > 1.0) {
       uint64_t bytesDiff = totalBytes - lastBytes;
       double totalRate = ((bytesDiff/tdiff)/1024.0/1024.0);
-      cout << totalRate << " MB/s, " << totalRate / 12 << " MB/s per channel"
-           << endl;
+      cout << totalRate << " MB/s, " << totalRate / max_channels
+           << " MB/s per channel" << endl;
       lastBytes = totalBytes;
       tLast = tNow;
     }
   }
 
-  for (int i = 0; i < 12; i++) {
+  for (i = 0; i < max_channels; i++) {
     if (pg[i]) {
       pg[i]->disable();
       delete pg[i];
