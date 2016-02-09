@@ -503,13 +503,16 @@ int main(int argc, char *argv[]) {
           uint64_t bytes_to_ram = packets_to_ram * 16 * 4;
           uint32_t fill_state = 100 * (next_addr - ddr3_ch_start_addr) /
                                 (ddr3_ch_max_addr - ddr3_ch_start_addr);
-          uint64_t max_avg_rate =
+          uint64_t max_avg_rate_ddl1 =
               list_of_filenames.size() * 212500000 / payload_to_ram;
+          uint64_t max_avg_rate_ddl2 =
+              list_of_filenames.size() * 312500000 / payload_to_ram;
           if (verbose) {
             cout << "Ch " << chId << ": wrote " << list_of_filenames.size()
                  << " file(s) to RAM using " << (bytes_to_ram >> 20) << " MB ("
-                 << fill_state << "%) - Max avg. rate: " << max_avg_rate
-                 << " Hz" << endl;
+                 << fill_state << "%) - Max avg. rate: " << max_avg_rate_ddl1
+                 << " Hz (DDL1) / " << max_avg_rate_ddl2 << " Hz (DDL2)"
+                 << endl;
           }
         }
       }
