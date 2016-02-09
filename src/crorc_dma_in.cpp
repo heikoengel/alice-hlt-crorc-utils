@@ -48,7 +48,8 @@ int configurePg(librorc::event_stream *es, uint32_t pgSize);
 void unconfigurePg(librorc::event_stream *es);
 int64_t timediff_us(struct timeval from, struct timeval to);
 void printStatusLine(librorc::ChannelStatus *cs_cur,
-                     librorc::ChannelStatus *cs_last, int64_t tdiff_us);
+                     librorc::ChannelStatus *cs_last, int64_t tdiff_us,
+                     int error_mask);
 
 // Signal handler
 void abort_handler(int s) {
@@ -199,6 +200,9 @@ int main(int argc, char *argv[]) {
   es->m_channel->clearEventCount();
   es->m_channel->clearStallCount();
   es->m_channel->readAndClearPtrStallFlags();
+  es->m_link->setFlowControlEnable(1);
+  es->m_link->setChannelActive(1);
+
 
   switch (dataSource) {
   case DS_DIU:
@@ -227,9 +231,6 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  es->m_link->setFlowControlEnable(1);
-  es->m_link->setChannelActive(1);
-
   // register signal handler for event loop
   struct sigaction sigIntHandler;
   sigIntHandler.sa_handler = abort_handler;
@@ -250,6 +251,7 @@ int main(int argc, char *argv[]) {
     checker->addRefFile(refFile);
     check_mask |= CHK_FILE;
   }
+  int error_mask = 0;
 
   // Main event loop
   while (!done) {
@@ -260,8 +262,10 @@ int main(int argc, char *argv[]) {
 
     if (es->getNextEvent(&report, &event, &reference)) {
       es->updateChannelStatus(report);
-      if (checker->check(report, event, check_mask) != 0) {
+      int ret = checker->check(report, event, check_mask);
+      if (ret != 0) {
 	es->m_channel_status->error_count++;
+        error_mask |= ret;
       }
       if (dumper) {
 	dumper->dump(report, event);
@@ -271,9 +275,12 @@ int main(int argc, char *argv[]) {
 
     int64_t tdiff_us = timediff_us(tlast, tcur);
     if (tdiff_us > 1000000) {
-      printStatusLine(es->m_channel_status, &cs_last, tdiff_us);
+      printStatusLine(es->m_channel_status, &cs_last, tdiff_us, error_mask);
       memcpy(&cs_last, es->m_channel_status, sizeof(librorc::ChannelStatus));
       tlast = tcur;
+      if (error_mask) {
+        error_mask = 0;
+      }
     }
   }
 
@@ -431,7 +438,8 @@ int64_t timediff_us(struct timeval from, struct timeval to) {
 }
 
 void printStatusLine(librorc::ChannelStatus *cs_cur,
-                     librorc::ChannelStatus *cs_last, int64_t tdiff_us) {
+                     librorc::ChannelStatus *cs_last, int64_t tdiff_us,
+                     int error_mask) {
   uint64_t events_diff = cs_cur->n_events - cs_last->n_events;
   float event_rate_khz = (events_diff * 1000000.0) / tdiff_us / 1000.0;
   uint64_t bytes_diff = cs_cur->bytes_received - cs_last->bytes_received;
@@ -447,7 +455,11 @@ void printStatusLine(librorc::ChannelStatus *cs_cur,
   } else {
     cout << "Data Rate: - , Event Rate: - ";
   }
-  cout << ", Errors: " << cs_cur->error_count << endl;
+  cout << ", Errors: " << cs_cur->error_count;
+  if( error_mask) {
+    cout << " mask: 0x" << hex << error_mask << dec;
+  }
+  cout << endl;
 }
 
 bool fileExists(char *filename) {
