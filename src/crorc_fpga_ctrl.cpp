@@ -686,7 +686,14 @@ int main(int argc, char *argv[]) {
   }
 
   if (cmd.linkspeed.get) {
-    librorc::refclkopts clkopts = rorc->m_refclk->getCurrentOpts(0);
+    librorc::refclkopts clkopts;
+    try {
+      clkopts = rorc->m_refclk->getCurrentOpts(0);
+    } catch (int e) {
+      cout << "ERROR: Failed to read RefClk configuration: "
+           << librorc::errMsg(e) << endl;
+      return -1;
+    }
     for (int i = gtx_start; i <= gtx_end; i++) {
       librorc::gtxpll_settings pllsts = rorc->m_gtx[i]->drpGetPllConfig();
       pllsts.refclk = rorc->m_refclk->getFout(clkopts);
@@ -706,13 +713,21 @@ int main(int argc, char *argv[]) {
     rorc->setAllGtxReset(1);
 
     // reconfigure reference clock
-    rorc->m_refclk->reset();
-    if (pllcfg.refclk != LIBRORC_REFCLK_DEFAULT_FOUT) {
-      librorc::refclkopts refclkopts =
-          rorc->m_refclk->getCurrentOpts(LIBRORC_REFCLK_DEFAULT_FOUT);
-      librorc::refclkopts new_refclkopts =
-          rorc->m_refclk->calcNewOpts(pllcfg.refclk, refclkopts.fxtal);
-      rorc->m_refclk->writeOptsToDevice(new_refclkopts);
+    try {
+      rorc->m_refclk->reset();
+      if (pllcfg.refclk != LIBRORC_REFCLK_DEFAULT_FOUT) {
+        librorc::refclkopts refclkopts =
+            rorc->m_refclk->getCurrentOpts(LIBRORC_REFCLK_DEFAULT_FOUT);
+        librorc::refclkopts new_refclkopts =
+            rorc->m_refclk->calcNewOpts(pllcfg.refclk, refclkopts.fxtal);
+        rorc->m_refclk->writeOptsToDevice(new_refclkopts);
+      }
+    } catch (int e) {
+      cout << "ERROR: Failed to reconfigure RefClk: " << librorc::errMsg(e) << endl;
+      cout << "Keeping QSFPs and GTXs in reset! Don't release reset "
+              "unless you know what you're doing! It's probably best "
+              "to power cycle..." << endl;
+      return -1;
     }
 
     // reconfigure GTX
@@ -735,7 +750,12 @@ int main(int argc, char *argv[]) {
   }
 
   if (cmd.refclkReset) {
-    rorc->m_refclk->reset();
+    try {
+      rorc->m_refclk->reset();
+    } catch (int e) {
+      cout << "ERROR: Failed to reset RefClk: " << librorc::errMsg(e) << endl;
+      return -1;
+    }
   }
 
 
