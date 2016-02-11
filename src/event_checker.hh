@@ -24,14 +24,14 @@
 #include <librorc.h>
 
 /** sanity checks **/
-#define CHK_SIZES   (1<<0)
-#define CHK_PATTERN (1<<1)
-#define CHK_SOE     (1<<2)
-#define CHK_EOE     (1<<3)
-#define CHK_ID      (1<<4)
-#define CHK_DIU_ERR (1<<5)
-#define CHK_FILE    (1<<8)
-#define CHK_CMPL    (1<<9)
+#define EC_CHK_SIZES (1 << 0)
+#define EC_CHK_PATTERN (1 << 1)
+#define EC_CHK_SOE (1 << 2)
+#define EC_CHK_EOE (1 << 3)
+#define EC_CHK_ID (1 << 4)
+#define EC_CHK_DIU_ERR (1 << 5)
+#define EC_CHK_FILE (1 << 8)
+#define EC_CHK_CMPL (1 << 9)
 
 struct refFileEntry {
   uint32_t *map;
@@ -44,13 +44,17 @@ public:
   ~event_checker();
 
   int addRefFile(char *filename);
-  int check(librorc::EventDescriptor *report, const uint32_t *event, uint32_t checkMask);
+  int check(librorc::EventDescriptor *report, const uint32_t *event,
+            uint32_t checkMask);
 
 private:
   uint32_t checkDiuError(librorc::EventDescriptor *report);
   uint32_t checkReportSizes(librorc::EventDescriptor *report);
   uint32_t checkCompletionStatus(librorc::EventDescriptor *report);
-  uint32_t checkReferenceFile(librorc::EventDescriptor *report, const uint32_t *event);
+  uint32_t checkReferenceFile(librorc::EventDescriptor *report,
+                              const uint32_t *event);
+  uint32_t checkStartOfEvent(librorc::EventDescriptor *report,
+                             const uint32_t *event);
 
   void selectNextRefFile();
   void dumpToFile(librorc::EventDescriptor *report, const uint32_t *event,

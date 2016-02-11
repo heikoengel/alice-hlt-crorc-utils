@@ -31,6 +31,8 @@ public:
   ~file_writer();
 
   int dump(librorc::EventDescriptor *report, const uint32_t *event);
+  void setDumpSizeLimit(ssize_t limit) { m_dump_size_limit = limit; }
+  ssize_t getDumpSizeLimit() { return m_dump_size_limit; }
 
 private:
   std::string create_file_name();
@@ -39,7 +41,8 @@ private:
   uint64_t m_eventcount;
   uint64_t m_eventlimit;
   uint32_t m_device;
-  uint32_t m_channel;  
+  uint32_t m_channel;
+  ssize_t m_dump_size_limit;
 };
 
 #endif // FILE_WRITER_HH

@@ -23,7 +23,6 @@
 #include <errno.h>
 #include "file_writer.hh"
 
-
 /****************** Helpers *******************/
 // Source: 'Patrick', https://stackoverflow.com/a/12904145
 int mkpath(std::string s, mode_t mode) {
@@ -53,6 +52,7 @@ file_writer::file_writer(std::string basedir, uint32_t device, uint32_t channel,
   m_eventlimit = 0;
   m_device = device;
   m_channel = channel;
+  m_dump_size_limit = (8 << 20); // 8MB
   struct stat dirstat;
   int ret = stat(basedir.c_str(), &dirstat);
   if (ret < 0 && errno == ENOENT) {
@@ -67,25 +67,51 @@ file_writer::file_writer(std::string basedir, uint32_t device, uint32_t channel,
 
 file_writer::~file_writer(){};
 
+int write_to_file(const char *filename, void *event, ssize_t size) {
+  int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  if (fd < 0) {
+    return -1;
+  }
+  ssize_t ret = write(fd, event, size);
+  close(fd);
+  if (ret != size) {
+    return -1;
+  }
+  return 0;
+}
+
 int file_writer::dump(librorc::EventDescriptor *report, const uint32_t *event) {
   if ((m_eventlimit > 0) && (m_eventcount > m_eventlimit)) {
     m_eventcount++;
     return 0;
   }
-  std::string filename = create_file_name();
-  int fd = open(filename.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
-  if (fd < 0) {
+  std::string filebase = create_file_name();
+
+  uint32_t rep_size = (report->reported_event_size & 0x3fffffff) << 2;
+  uint32_t calc_size = (report->calc_event_size & 0x3fffffff) << 2;
+  ssize_t event_size = calc_size;
+  if (rep_size > calc_size) {
+    event_size = rep_size;
+  }
+  if (event_size > m_dump_size_limit) {
+    std::cerr << "WARNING: event exceeds dump size limit, dumping only first "
+              << m_dump_size_limit << " bytes." << std::endl;
+    event_size = m_dump_size_limit;
+  }
+  std::string filename = filebase + ".ddl";
+  if (write_to_file(filename.c_str(), (void *)event, event_size) < 0) {
     return -1;
   }
-  ssize_t event_size = (report->calc_event_size & 0x3fffffff) << 2;
-  ssize_t ret = write(fd, event, event_size);
-  close(fd);
-  if (ret != event_size) {
+  filename = filebase + ".report";
+  if (write_to_file(filename.c_str(), (void *)report, sizeof(report)) ) {
     return -1;
   }
+
   m_eventcount++;
   return 0;
 }
+
+
 
 /****************** Private *******************/
 std::string file_writer::create_file_name() {

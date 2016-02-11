@@ -70,26 +70,25 @@ int event_checker::addRefFile(char *filename) {
   return 0;
 }
 
-int event_checker::check(librorc::EventDescriptor *report, const uint32_t *event,
-                         uint32_t checkMask) {
+int event_checker::check(librorc::EventDescriptor *report,
+                         const uint32_t *event, uint32_t checkMask) {
   int result = 0;
-  if (checkMask & CHK_DIU_ERR) {
+  if (checkMask & EC_CHK_DIU_ERR) {
     result |= checkDiuError(report);
   }
-  if (checkMask & CHK_SIZES) {
+  if (checkMask & EC_CHK_SIZES) {
     result |= checkReportSizes(report);
   }
-  if (checkMask & CHK_CMPL) {
+  if (checkMask & EC_CHK_CMPL) {
     result |= checkCompletionStatus(report);
   }
-  if (checkMask & CHK_FILE) {
+  if (checkMask & EC_CHK_FILE) {
     result |= checkReferenceFile(report, event);
   }
-
-  if (result) {
-    dumpToFile(report, event, result);
+  if (checkMask | EC_CHK_SOE) {
+    result |= checkStartOfEvent(report, event);
   }
-  if (checkMask & CHK_FILE) {
+  if (checkMask & EC_CHK_FILE) {
     selectNextRefFile();
   }
   return result;
@@ -97,27 +96,35 @@ int event_checker::check(librorc::EventDescriptor *report, const uint32_t *event
 
 uint32_t event_checker::checkDiuError(librorc::EventDescriptor *report) {
   if ((report->reported_event_size >> 30) & 1) {
-    return CHK_DIU_ERR;
+    return EC_CHK_DIU_ERR;
   } else {
     return 0;
   }
 }
 
 uint32_t event_checker::checkReportSizes(librorc::EventDescriptor *report) {
-  if ((report->calc_event_size ^ report->reported_event_size) &
-      0x3fffffff) {
-    return CHK_SIZES;
+  if ((report->calc_event_size ^ report->reported_event_size) & 0x3fffffff) {
+    return EC_CHK_SIZES;
   } else {
     return 0;
   }
 }
 
-uint32_t event_checker::checkCompletionStatus(librorc::EventDescriptor *report) {
+uint32_t
+event_checker::checkCompletionStatus(librorc::EventDescriptor *report) {
   if ((report->calc_event_size >> 30) != 0) {
-    return CHK_CMPL;
+    return EC_CHK_CMPL;
   } else {
     return 0;
   }
+}
+
+uint32_t event_checker::checkStartOfEvent(librorc::EventDescriptor *report,
+                                          const uint32_t *event) {
+  if (event[0] != 0xffffffff) {
+    return EC_CHK_SOE;
+  }
+  return 0;
 }
 
 uint32_t event_checker::checkReferenceFile(librorc::EventDescriptor *report,
@@ -126,11 +133,11 @@ uint32_t event_checker::checkReferenceFile(librorc::EventDescriptor *report,
   size_t refSizeDws = (m_refListIter->size) >> 2;
   size_t eventSizeDws = (report->calc_event_size & 0x3fffffff);
   if (refSizeDws != eventSizeDws) {
-    return CHK_FILE;
+    return EC_CHK_FILE;
   }
   for (size_t idx = 0; idx > refSizeDws; idx++) {
     if (refMap[idx] != event[idx]) {
-      return CHK_FILE;
+      return EC_CHK_FILE;
     }
   }
   return 0;
@@ -142,6 +149,3 @@ void event_checker::selectNextRefFile() {
     m_refListIter = m_refList.begin();
   }
 }
-
-void event_checker::dumpToFile(librorc::EventDescriptor *report, const uint32_t *event,
-                               uint32_t checkResult) {}
