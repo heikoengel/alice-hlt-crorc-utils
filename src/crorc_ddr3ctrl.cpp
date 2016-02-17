@@ -144,7 +144,7 @@ int main(int argc, char *argv[]) {
 
   if (argc > 1) {
     while (1) {
-      int opt = getopt_long(argc, argv, "hvn:m:r:tsIc:f:O:C:e:L:DPR:WT:",
+      int opt = getopt_long(argc, argv, "hvn:m:r:tsIc:f:O:C:e:L:DPR:WT:E:",
                             long_options, NULL);
       if (opt == -1) {
         break;
@@ -494,7 +494,7 @@ int main(int argc, char *argv[]) {
         while (iter != end) {
           bool is_last_event = (iter == (end - 1));
           const char *filename = (*iter).c_str();
-          int idx = (iter - list_of_filenames.begin()) + 1;
+          int idx = (iter - list_of_filenames.begin());
           bool diu_error = setErrorFlag && (idx == sErrorFlagFileno);
           ret = fileToRam(sm, chId, filename, next_addr, is_last_event,
                           diu_error, next_addr);
