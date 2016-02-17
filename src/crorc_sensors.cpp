@@ -279,10 +279,12 @@ int main(int argc, char *argv[]) {
   }
 
   if (sDdrCtrl0Bitrate || sAll) {
-    PRINT_METRIC("ddr_ctrl0_bitrate", "%d", sm->ddr3Bitrate(0), sAll);
+    librorc::ddr3 ctrl = librorc::ddr3(bar, 0);
+    PRINT_METRIC("ddr_ctrl0_bitrate", "%d", ctrl.getBitrate(), sAll);
   }
   if (sDdrCtrl1Bitrate || sAll) {
-    PRINT_METRIC("ddr_ctrl1_bitrate", "%d", sm->ddr3Bitrate(1), sAll);
+    librorc::ddr3 ctrl = librorc::ddr3(bar, 1);
+    PRINT_METRIC("ddr_ctrl1_bitrate", "%d", ctrl.getBitrate(), sAll);
   }
 
   if (sDdrMod0Available || sAll) {

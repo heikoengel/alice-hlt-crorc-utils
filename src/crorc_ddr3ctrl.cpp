@@ -49,6 +49,7 @@ using namespace std;
   "                        available channels\n"                               \
   "-R|--channelreset [0,1] set/unset replay channel reset\n"                   \
   "-f|--file [path]        file to be loaded into DDR3\n"                      \
+  "-E|--diuerror [fileno]  Set DIU error flag for [fileno] file being loaded\n"\
   "-O|--oneshot [0,1]      set/unset oneshot replay mode\n"                    \
   "-C|--continuous [0,1]   set/unset oneshot replay mode\n"                    \
   "-e|--enable [0,1]       set/unset replay channel enable\n"                  \
@@ -67,7 +68,8 @@ using namespace std;
 uint64_t getDdr3ModuleCapacity(librorc::sysmon *sm, uint8_t module_number);
 uint32_t getNumberOfReplayChannels(librorc::bar *bar, librorc::sysmon *sm);
 int fileToRam(librorc::sysmon *sm, uint32_t channelId, const char *filename,
-              uint32_t addr, bool is_last_event, uint32_t &next_addr);
+              uint32_t addr, bool is_last_event, bool diu_error,
+              uint32_t &next_addr);
 int waitForReplayDone(librorc::datareplaychannel *dr);
 void printChannelStatus(uint32_t ChannelId, librorc::datareplaychannel *dr,
                         int verbose);
@@ -111,6 +113,8 @@ int main(int argc, char *argv[]) {
   uint32_t sTimeoutVal = 0;
   bool isModuleOp = false;
   bool isChannelOp = false;
+  bool setErrorFlag = false;
+  int sErrorFlagFileno = 0;
 
   static struct option long_options[] = {
       // General
@@ -126,6 +130,7 @@ int main(int argc, char *argv[]) {
       // Data Replay related
       {"channel", required_argument, 0, 'c'},
       {"file", required_argument, 0, 'f'},
+      {"diuerror", required_argument, 0, 'E'},
       {"oneshow", required_argument, 0, 'O'},
       {"continuous", required_argument, 0, 'C'},
       {"enable", required_argument, 0, 'e'},
@@ -182,6 +187,10 @@ int main(int argc, char *argv[]) {
         isChannelOp = true;
         list_of_filenames.push_back(optarg);
         sFileToDdr3 = 1;
+        break;
+      case 'E':
+        sErrorFlagFileno = strtol(optarg, NULL, 0);
+        setErrorFlag = true;
         break;
       case 'O':
         isChannelOp = true;
@@ -397,9 +406,14 @@ int main(int argc, char *argv[]) {
       endChannel = channelId;
     }
 
+    librorc::ddr3 *ctrl[2] = {NULL, NULL};
+    ctrl[0] = new librorc::ddr3(bar, 0);
+    ctrl[1] = new librorc::ddr3(bar, 1);
+
 #ifdef MODELSIM
     /** wait for phy_init_done in simulation */
-    while (!(bar->get32(RORC_REG_DDR3_CTRL) & (1 << 1))) {
+    while ((startChannel < 6 && !ctrl[0]->initPhaseDone()) ||
+           (endChannel > 5 && !ctrl[1]->initPhaseDone())) {
       usleep(100);
     }
 #endif
@@ -409,17 +423,19 @@ int main(int argc, char *argv[]) {
        * get size of installed RAM modules and max supported size from
        * controller. This is required to calculate the DDR3 addresses.
        **/
-      if (startChannel < 6 && sm->ddr3Bitrate(0) != 0) {
+      if (startChannel < 6 && ctrl[0]->getBitrate() != 0) {
         module_size[0] = getDdr3ModuleCapacity(sm, 0);
-        max_ctrl_size[0] = sm->ddr3ControllerMaxModuleSize(0);
-        module_ready[0] = sm->ddr3ModuleInitReady(0);
+        max_ctrl_size[0] = ctrl[0]->maxModuleSize();
+        module_ready[0] = ctrl[0]->initSuccessful();
       }
-      if (endChannel > 5 && sm->ddr3Bitrate(1) != 0) {
+      if (endChannel > 5 && ctrl[1]->getBitrate() != 0) {
         module_size[1] = getDdr3ModuleCapacity(sm, 1);
-        max_ctrl_size[1] = sm->ddr3ControllerMaxModuleSize(1);
-        module_ready[1] = sm->ddr3ModuleInitReady(1);
+        max_ctrl_size[1] = ctrl[1]->maxModuleSize();
+        module_ready[1] = ctrl[1]->initSuccessful();
       }
     }
+    delete ctrl[0];
+    delete ctrl[1];
   }
 
   // any DataReplay related options set?
@@ -478,10 +494,11 @@ int main(int argc, char *argv[]) {
         while (iter != end) {
           bool is_last_event = (iter == (end - 1));
           const char *filename = (*iter).c_str();
+          int idx = (iter - list_of_filenames.begin()) + 1;
+          bool diu_error = setErrorFlag && (idx == sErrorFlagFileno);
           ret = fileToRam(sm, chId, filename, next_addr, is_last_event,
-                          next_addr);
+                          diu_error, next_addr);
           if (next_addr > ddr3_ch_max_addr) {
-            int idx = (iter - list_of_filenames.begin()) + 1;
             size_t overlap = (next_addr - ddr3_ch_max_addr) * 8; // 8B per addr
             cerr << "ERROR: Channel " << chId << ", Input file no. " << idx
                  << " (" << filename << ") - Replay data exceeds channel "
@@ -675,7 +692,8 @@ uint32_t getNumberOfReplayChannels(librorc::bar *bar, librorc::sysmon *sm) {
  * write a file to DDR3
  **/
 int fileToRam(librorc::sysmon *sm, uint32_t channelId, const char *filename,
-              uint32_t addr, bool is_last_event, uint32_t &next_addr) {
+              uint32_t addr, bool is_last_event, bool diu_error,
+              uint32_t &next_addr) {
   int fd_in = open(filename, O_RDONLY);
   if (fd_in == -1) {
     cerr << "ERROR: Failed to open input file" << filename << endl;
@@ -698,7 +716,8 @@ int fileToRam(librorc::sysmon *sm, uint32_t channelId, const char *filename,
                                      (fd_in_stat.st_size >> 2), // num_dws
                                      addr,           // ddr3 start address
                                      channelId,      // channel
-                                     is_last_event); // last event
+                                     is_last_event,  // last event
+                                     diu_error );    // DIU error flag
   } catch (int e) {
     const char *reason;
     switch (e) {
