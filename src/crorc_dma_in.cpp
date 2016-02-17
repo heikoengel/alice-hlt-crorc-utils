@@ -86,7 +86,7 @@ int main(int argc, char *argv[]) {
       {0, 0, 0, 0}};
 
   int opt;
-  while ((opt = getopt_long(argc, argv, "n:c:f:S:s:m:p:h", long_options, NULL)) !=
+  while ((opt = getopt_long(argc, argv, "n:c:f:S:s:m:p:hd:", long_options, NULL)) !=
          -1) {
     switch (opt) {
     case 'n':
@@ -169,7 +169,7 @@ int main(int argc, char *argv[]) {
     try {
       dumper = new file_writer(dumpDir, deviceId, channelId, 100);
     } catch (int e) {
-      perror("ERROR initializing file writer:");
+      cerr << "ERROR initializing file writer: " << e << endl;
       return -1;
     }
   }

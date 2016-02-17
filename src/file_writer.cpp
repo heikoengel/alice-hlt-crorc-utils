@@ -60,7 +60,7 @@ file_writer::file_writer(std::string basedir, uint32_t device, uint32_t channel,
     if (ret < 0) {
       throw FILE_WRITER_CONSTRUCTOR_FAILED;
     }
-  } else {
+  } else if (ret < 0) {
     throw FILE_WRITER_CONSTRUCTOR_FAILED;
   }
 }

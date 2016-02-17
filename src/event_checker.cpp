@@ -85,7 +85,7 @@ int event_checker::check(librorc::EventDescriptor *report,
   if (checkMask & EC_CHK_FILE) {
     result |= checkReferenceFile(report, event);
   }
-  if (checkMask | EC_CHK_SOE) {
+  if (checkMask & EC_CHK_SOE) {
     result |= checkStartOfEvent(report, event);
   }
   if (checkMask & EC_CHK_FILE) {
