@@ -241,6 +241,7 @@ typedef struct {
   int dmaClearErrorFlags;
   int dmaStatus;
   int gtxRxInit;
+  int pcieDeadtime;
   tControlSet fan;
   tControlSet flowControl;
   tControlSet channelActive;
@@ -327,6 +328,7 @@ int main(int argc, char *argv[]) {
       {"linkstatus", no_argument, &(cmd.linkStatus), 1},
       {"listlinkspeeds", no_argument, 0, 'S'},
       {"listrorcs", no_argument, 0, 'l'},
+      {"pciedeadtime", no_argument, &(cmd.pcieDeadtime), 1},
       {"refclkreset", no_argument, &(cmd.refclkReset), 1},
       {0, 0, 0, 0}};
   int nargs = sizeof(long_options) / sizeof(option);
@@ -666,6 +668,11 @@ int main(int argc, char *argv[]) {
     cout << "Linkmask 0x" << hex << rorc->getLinkmask() << dec << endl;
   } else if (cmd.linkmask.set) {
     rorc->setLinkmask(cmd.linkmask.value);
+  }
+
+  if (cmd.pcieDeadtime) {
+    cout << "PCIe max. Deadtime: " << rorc->m_sm->maxPcieDeadtime() << " us"
+         << endl;
   }
 
   int ch_start, ch_end;
