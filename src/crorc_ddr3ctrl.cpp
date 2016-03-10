@@ -53,7 +53,7 @@ using namespace std;
   "-O|--oneshot [0,1]      set/unset oneshot replay mode\n"                    \
   "-C|--continuous [0,1]   set/unset oneshot replay mode\n"                    \
   "-e|--enable [0,1]       set/unset replay channel enable\n"                  \
-  "-l|--limit [count]      set event limit for continuous replay\n"            \
+  "-L|--limit [count]      set event limit for continuous replay\n"            \
   "-D|--disablereplay      disable replay gracefully\n"                        \
   "-P|--replaystatus       show replay channel status\n"                       \
   "-W|--wait               wait for non-continous replay to finish\n"          \
@@ -600,22 +600,22 @@ int main(int argc, char *argv[]) {
     if (verbose) {
       cout << "Waiting..." << endl;
     }
-    bool replayDone[endChannel];
+    bool replayDone[endChannel+1];
     bool allDone = false;
     struct timeval start, now;
     gettimeofday(&start, NULL);
     bool timeout = false;
     while (!allDone && !timeout) {
+      allDone = true;
       for (uint32_t chId = startChannel; chId <= endChannel; chId++) {
         librorc::link *link = new librorc::link(bar, chId);
         librorc::datareplaychannel *dr = new librorc::datareplaychannel(link);
         replayDone[chId] = dr->isDone();
+        if (replayDone[chId] == false) {
+          allDone = false;
+        }
         delete dr;
         delete link;
-      }
-      allDone = true;
-      for (uint32_t i = startChannel; i <= endChannel; i++) {
-        allDone &= replayDone[i];
       }
       if (sSetTimeout) {
         gettimeofday(&now, NULL);
