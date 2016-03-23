@@ -4,7 +4,7 @@
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or 
+ *  the Free Software Foundation, either version 3 of the License, or
  *  (at your option) any later version.
  *
  *  This program is distributed in the hope that it will be useful,
@@ -56,9 +56,12 @@ void list_options(const struct option *long_options, int nargs) {
       " by adding the value parameter." << endl;
 }
 
+uint32_t pllcfg2linkspeed(librorc::gtxpll_settings pllcfg) {
+  return 2 * pllcfg.refclk * pllcfg.n1 * pllcfg.n2 / pllcfg.m / pllcfg.d;
+}
+
 void print_linkpllstate(librorc::gtxpll_settings pllcfg) {
-  uint32_t linkspeed =
-      2 * pllcfg.refclk * pllcfg.n1 * pllcfg.n2 / pllcfg.m / pllcfg.d;
+  uint32_t linkspeed = pllcfg2linkspeed(pllcfg);
   cout << "GTX Link Speed: " << linkspeed << " Mbps, RefClk: " << pllcfg.refclk
        << " MHz" << endl;
 }
@@ -708,12 +711,25 @@ int main(int argc, char *argv[]) {
       print_linkpllstate(pllsts);
     }
   } else if (cmd.linkspeed.set) {
-    if (cmd.linkspeed.value > nPllCfgs) {
+    uint32_t linkspeed_index = cmd.linkspeed.value;
+
+    // try to detect the command line value as link speed in Mbps
+    if (linkspeed_index > nPllCfgs) {
+      for (uint32_t idx = 0; idx < nPllCfgs; idx++) {
+        uint32_t pll_ls = pllcfg2linkspeed(librorc::gtxpll_supported_cfgs[idx]);
+        if (pll_ls == linkspeed_index) {
+          linkspeed_index = idx;
+          break;
+        }
+      }
+    }
+
+    if (linkspeed_index > nPllCfgs) {
       cout << "ERROR: invalid PLL config selected." << endl;
       return -1;
     }
     librorc::gtxpll_settings pllcfg =
-        librorc::gtxpll_supported_cfgs[cmd.linkspeed.value];
+        librorc::gtxpll_supported_cfgs[linkspeed_index];
 
     // set QSFPs and GTX to reset
     rorc->setAllQsfpReset(1);
