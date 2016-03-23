@@ -1,4 +1,6 @@
 SET( SCRIPTS
-  crorc_rescan_pcie )
+  crorc_rescan_pcie
+  crorc_hwcf_coproc_zmq_feeder.py
+  )
 
 INSTALL( FILES ${SCRIPTS} DESTINATION bin PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ GROUP_EXECUTE GROUP_READ WORLD_READ)

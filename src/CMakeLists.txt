@@ -23,10 +23,24 @@ ADD_EXECUTABLE( crorc_fpga_ctrl
 TARGET_LINK_LIBRARIES( crorc_fpga_ctrl ${LIBRORC_LIBRARY} ${EXTRA_LIBS} )
 INSTALL(TARGETS crorc_fpga_ctrl RUNTIME DESTINATION bin )
 
-ADD_EXECUTABLE( crorc_dma_in
-  event_checker.cpp
+ADD_LIBRARY(crorcutils SHARED
+  crorc_hwcf_coproc_handler.cpp
   file_writer.cpp
   fcf_mapping.cpp
-  crorc_dma_in.cpp)
-TARGET_LINK_LIBRARIES( crorc_dma_in ${LIBRORC_LIBRARY} ${EXTRA_LIBS} )
-INSTALL(TARGETS crorc_dma_in RUNTIME DESTINATION bin )
+  event_checker.cpp
+  )
+TARGET_LINK_LIBRARIES(crorcutils ${LIBRORC_LIBRARY})
+INSTALL(TARGETS crorcutils LIBRARY DESTINATION lib)
+SET(EXTRA_LIBS crorcutils)
+
+SET ( UTIL_LIB_LIST
+  crorc_dma_in
+  crorc_hwcf_coproc_zmq
+  crorc_fcf_mapping_dump
+  )
+
+FOREACH ( UTIL ${UTIL_LIB_LIST} )
+  ADD_EXECUTABLE( ${UTIL} ${UTIL}.cpp )
+  TARGET_LINK_LIBRARIES( ${UTIL} ${LIBRORC_LIBRARY} ${ZEROMQ_LIBRARIES} ${EXTRA_LIBS} )
+  INSTALL( TARGETS ${UTIL} RUNTIME DESTINATION bin )
+ENDFOREACH( UTIL )
