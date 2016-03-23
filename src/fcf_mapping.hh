@@ -27,7 +27,7 @@ class fcf_mapping {
 public:
   fcf_mapping(unsigned patchNr);
   ~fcf_mapping();
-  int readMappingFile(const char *filename);
+  int readMappingFile(const char *filename, uint32_t rcuVersion = 1);
   uint32_t operator[](unsigned ndx);
 
 private:

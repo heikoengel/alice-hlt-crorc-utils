@@ -63,7 +63,7 @@ std::vector<std::string> splitString( std::string &s, char token) {
   return ret;
 }
 
-int fcf_mapping::readMappingFile(const char *filename) {
+int fcf_mapping::readMappingFile(const char *filename, uint32_t rcuVersion) {
   if (!filename) {
     errno = EINVAL;
     return -1;
@@ -142,24 +142,24 @@ int fcf_mapping::readMappingFile(const char *filename) {
       unsigned long lastPatchNr = (lastHWAddress & ~0xFFF) >> 12;
       if (patchNr != fPatchNr) {
         if (lastHWAddress != ~(0UL) && lastPatchNr == fPatchNr) {
-          lastHWAddress &= 0xFFF;
-          fConfigWords[lastHWAddress] |=
-              (1 << 14); // Change in patch means this pad (which we ignore
-                         // since it is in the wrong patch) and the preceeding
-                         // one, must be border pads
+          // Change in patch means this pad (which we ignore
+          // since it is in the wrong patch) and the preceeding
+          // one, must be border pads
+          fConfigWords[lastHWAddress & 0xFFF] |= (1 << 14);
         }
         lastHWAddress = hwAddress;
         continue;
       }
-      bool isBorderPad =
-          (lastHWAddress == ~(0UL)) ||
-          (((hwAddress >= lastHWAddress) ? (hwAddress - lastHWAddress)
-                                         : (lastHWAddress - hwAddress)) >=
-           2048); // First pad in a padrow is always border pad, or if hwaddress
-                  // differs by at least 2048 from preceeding hw address.
-      hwAddress &= 0xFFF; // Clear patch nr from HW address, do this only after
-                          // the difference has been checked above.
-      lastHWAddress &= 0xFFF;
+      // First pad in a padrow is always border pad
+      bool isBorderPad = (lastHWAddress == ~(0UL));
+      unsigned long hwAddressDiff = (hwAddress >= lastHWAddress)
+                                        ? (hwAddress - lastHWAddress)
+                                        : (lastHWAddress - hwAddress);
+      // or if hwaddress differs by at least 2048 from preceeding hw address on
+      // RCU1 (branch jump)
+      if (rcuVersion == 1 && hwAddressDiff >= 2048) {
+        isBorderPad = true;
+      }
       uint32_t configWord = (pad & 0xFF) | ((rowNr & 0x3F) << 8);
       if (active) {
         configWord |= (1 << 15);
@@ -172,17 +172,16 @@ int fcf_mapping::readMappingFile(const char *filename) {
       if (isBorderPad && lastHWAddress != ~(0UL) && lastPatchNr == fPatchNr) {
         // This pad is a border pad, therefore the previous one
         // has to have been one as well...
-        fConfigWords[lastHWAddress] |= (1 << 14);
+        fConfigWords[lastHWAddress & 0xFFF] |= (1 << 14);
       }
       configWord |= (gainCalib & 0x1FFF) << 16;
-      fConfigWords[hwAddress] = configWord;
-      lastHWAddress = hwAddress | (fPatchNr << 12);
+      fConfigWords[hwAddress & 0xFFF] = configWord;
+      lastHWAddress = hwAddress;
     }
     unsigned long lastPatchNr = (lastHWAddress & ~0xFFF) >> 12;
     if (lastHWAddress != ~(0UL) && lastPatchNr == fPatchNr) {
-      lastHWAddress &= 0xFFF;
       // Last pad is always border pad by definition
-      fConfigWords[lastHWAddress] |= (1 << 14);
+      fConfigWords[lastHWAddress & 0xFFF] |= (1 << 14);
     }
   }
   return 0;
