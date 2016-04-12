@@ -262,6 +262,7 @@ int main(int argc, char *argv[]) {
     delete link;
   }
 
+  delete sm;
   delete bar;
   delete dev;
   return 0;
