@@ -36,7 +36,13 @@ using namespace std;
 #endif
 
 bool done = false;
-enum t_dataSource { DS_PG, DS_DDR3, DS_DIU, DS_SIU, DS_RAW };
+enum t_dataSource {
+  DS_PG,
+  DS_DDR3,
+  DS_DIU,
+  DS_SIU,
+  DS_RAW
+};
 
 // Prototypes
 bool fileExists(char *filename);
@@ -47,6 +53,8 @@ int configureFcf(librorc::event_stream *es, char *tpcRowMappingFile,
 void unconfigureFcf(librorc::event_stream *es);
 int configurePg(librorc::event_stream *es, uint32_t pgSize);
 void unconfigurePg(librorc::event_stream *es);
+int configureRawReadout(librorc::event_stream *es);
+void unconfigureRawReadout(librorc::event_stream *es);
 int64_t timediff_us(struct timeval from, struct timeval to);
 void printStatusLine(librorc::ChannelStatus *cs_cur,
                      librorc::ChannelStatus *cs_last, int64_t tdiff_us,
@@ -73,24 +81,25 @@ int main(int argc, char *argv[]) {
   char *dumpDir = NULL;
   uint32_t tpcPatch = 0;
   uint32_t rcuVersion = 1;
-  
+
   static struct option long_options[] = {
-      {"device", required_argument, 0, 'n'},
-      {"channel", required_argument, 0, 'c'},
-      {"file", required_argument, 0, 'f'},
-      {"size", required_argument, 0, 'S'},
-      {"source", required_argument, 0, 's'},
-      {"fcfmapping", required_argument, 0, 'm'},
-      {"tpcpatch", required_argument, 0, 'p'},
-      {"dump", required_argument, 0, 'd'},
-      {"reffile", required_argument, 0, 'f'},
-      {"rcuversion", required_argument, 0, 'r'},
-      {"help", no_argument, 0, 'h'},
-      {0, 0, 0, 0}};
+    { "device", required_argument, 0, 'n' },
+    { "channel", required_argument, 0, 'c' },
+    { "file", required_argument, 0, 'f' },
+    { "size", required_argument, 0, 'S' },
+    { "source", required_argument, 0, 's' },
+    { "fcfmapping", required_argument, 0, 'm' },
+    { "tpcpatch", required_argument, 0, 'p' },
+    { "dump", required_argument, 0, 'd' },
+    { "reffile", required_argument, 0, 'f' },
+    { "rcuversion", required_argument, 0, 'r' },
+    { "help", no_argument, 0, 'h' },
+    { 0, 0, 0, 0 }
+  };
 
   int opt;
-  while ((opt = getopt_long(argc, argv, "n:c:f:S:s:m:p:hd:r:", long_options, NULL)) !=
-         -1) {
+  while ((opt = getopt_long(argc, argv, "n:c:f:S:s:m:p:hd:r:", long_options,
+                            NULL)) != -1) {
     switch (opt) {
     case 'n':
       deviceId = strtoul(optarg, NULL, 0);
@@ -133,25 +142,24 @@ int main(int argc, char *argv[]) {
     case 'd':
       dumpDir = optarg;
       break;
-    case 'h':
-      {
-	cout << argv[0] << " command line parameters: " << endl;
-	int long_opt_count = (sizeof(long_options) / sizeof(struct option)) - 1;
-	for (int i = 0; i < long_opt_count; i++) {
-	  struct option cur = long_options[i];
-	  cout << "  ";
-	  if (cur.val != 0) {
-	    cout << "-" << char(cur.val) << "/";
-	  }
-	  cout << "--" << cur.name;
-	  if (cur.has_arg == required_argument) {
-	    cout << " [arg]";
-	  } else if (cur.has_arg == optional_argument) {
-	    cout << " ([arg])";
-	  }
-	  cout << endl;
-	}
+    case 'h': {
+      cout << argv[0] << " command line parameters: " << endl;
+      int long_opt_count = (sizeof(long_options) / sizeof(struct option)) - 1;
+      for (int i = 0; i < long_opt_count; i++) {
+        struct option cur = long_options[i];
+        cout << "  ";
+        if (cur.val != 0) {
+          cout << "-" << char(cur.val) << "/";
+        }
+        cout << "--" << cur.name;
+        if (cur.has_arg == required_argument) {
+          cout << " [arg]";
+        } else if (cur.has_arg == optional_argument) {
+          cout << " ([arg])";
+        }
+        cout << endl;
       }
+    }
       return 0;
       break;
     default:
@@ -180,7 +188,8 @@ int main(int argc, char *argv[]) {
   if (dumpDir) {
     try {
       dumper = new file_writer(dumpDir, deviceId, channelId, 100);
-    } catch (int e) {
+    }
+    catch (int e) {
       cerr << "ERROR initializing file writer: " << e << endl;
       return -1;
     }
@@ -190,7 +199,8 @@ int main(int argc, char *argv[]) {
   try {
     es = new librorc::event_stream(deviceId, channelId,
                                    librorc::kEventStreamToHost);
-  } catch (int e) {
+  }
+  catch (int e) {
     cerr << "ERROR: Exception while setting up event stream: "
          << librorc::errMsg(e) << endl;
     return -1;
@@ -215,7 +225,6 @@ int main(int argc, char *argv[]) {
   es->m_link->setFlowControlEnable(1);
   es->m_link->setChannelActive(1);
 
-
   switch (dataSource) {
   case DS_DIU:
   case DS_SIU:
@@ -227,7 +236,7 @@ int main(int argc, char *argv[]) {
     }
     break;
   case DS_RAW:
-    // configureRaw(es);
+    configureRawReadout(es);
     break;
   case DS_PG:
     configurePg(es, pgSize);
@@ -276,11 +285,11 @@ int main(int argc, char *argv[]) {
       es->updateChannelStatus(report);
       int ret = checker->check(report, event, check_mask);
       if (ret != 0) {
-	es->m_channel_status->error_count++;
+        es->m_channel_status->error_count++;
         error_mask |= ret;
       }
       if (dumper) {
-	dumper->dump(report, event);
+        dumper->dump(report, event);
       }
       es->releaseEvent(reference);
     }
@@ -304,7 +313,7 @@ int main(int argc, char *argv[]) {
     unconfigureDdl(es, dataSource);
     break;
   case DS_RAW:
-    // unconfigureRaw(es);
+    unconfigureRawReadout(es);
     break;
   case DS_PG:
     unconfigurePg(es);
@@ -450,6 +459,25 @@ void unconfigurePg(librorc::event_stream *es) {
   delete pg;
 }
 
+int configureRawReadout(librorc::event_stream *es) {
+  librorc::ddl *rawddl = es->getRawReadout();
+  if (!rawddl) {
+    return 0;
+  }
+  rawddl->setEnable(1);
+  delete rawddl;
+  return 0;
+}
+
+void unconfigureRawReadout(librorc::event_stream *es) {
+  librorc::ddl *rawddl = es->getRawReadout();
+  if (!rawddl) {
+    return;
+  }
+  rawddl->setEnable(0);
+  delete rawddl;
+}
+
 int64_t timediff_us(struct timeval from, struct timeval to) {
   return ((int64_t)(to.tv_sec - from.tv_sec) * 1000000LL +
           (int64_t)(to.tv_usec - from.tv_usec));
@@ -464,7 +492,7 @@ void printStatusLine(librorc::ChannelStatus *cs_cur,
   float mbytes_rate = (bytes_diff * 1000000.0) / tdiff_us / (float)(1 << 20);
   float total_receiced_GB = (cs_cur->bytes_received / (float)(1 << 30));
   cout.precision(2);
-  cout.setf( ios::fixed, ios::floatfield );
+  cout.setf(ios::fixed, ios::floatfield);
   cout << "Ch" << cs_cur->channel << " -  #Events: " << cs_cur->n_events
        << ", Size: " << total_receiced_GB << " GB, ";
   if (events_diff) {
@@ -474,7 +502,7 @@ void printStatusLine(librorc::ChannelStatus *cs_cur,
     cout << "Data Rate: - , Event Rate: - ";
   }
   cout << ", Errors: " << cs_cur->error_count;
-  if( error_mask) {
+  if (error_mask) {
     cout << " mask: 0x" << hex << error_mask << dec;
   }
   cout << endl;
