@@ -49,7 +49,7 @@ file_writer::file_writer(std::string basedir, uint32_t device, uint32_t channel,
                          uint64_t eventlimit) {
   m_basedir = basedir;
   m_eventcount = 0;
-  m_eventlimit = 0;
+  m_eventlimit = eventlimit;
   m_device = device;
   m_channel = channel;
   m_dump_size_limit = (8 << 20); // 8MB
