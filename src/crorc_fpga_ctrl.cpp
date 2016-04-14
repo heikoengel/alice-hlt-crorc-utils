@@ -1048,8 +1048,9 @@ int main(int argc, char *argv[]) {
     if (cmd.diuLastIFSTW) {
       if (rorc->m_diu[i] != NULL) {
         uint32_t lastIFSTW = rorc->m_diu[i]->lastInterfaceStatusWord();
+        bool linkUp = rorc->m_diu[i]->linkUp();
         cout << "Link " << i << " last IFSTW: 0x" << hex << lastIFSTW
-             << dec << endl;
+             << dec << " linkUp: " << linkUp << endl;
       } else {
         cout << "Link" << i << " has no local DIU so no last IFSTW" << endl;
       }
