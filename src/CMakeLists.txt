@@ -29,7 +29,7 @@ ADD_LIBRARY(crorcutils SHARED
   fcf_mapping.cpp
   event_checker.cpp
   )
-TARGET_LINK_LIBRARIES(crorcutils ${LIBRORC_LIBRARY})
+TARGET_LINK_LIBRARIES(crorcutils ${LIBRORC_LIBRARY} ${ZEROMQ_LIBRARIES})
 INSTALL(TARGETS crorcutils LIBRARY DESTINATION lib)
 SET(EXTRA_LIBS crorcutils)
 
