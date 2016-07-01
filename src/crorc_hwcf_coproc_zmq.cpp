@@ -52,6 +52,7 @@ void cleanup(crorc_hwcf_coproc_handler **stream, librorc::bar **bar,
              librorc::device **dev);
 void checkHwcfFlags(librorc::EventDescriptor *report,
                     const char *outputFileName);
+void printStatusLine(uint32_t deviceId, struct streamStatus_t sts);
 
 inline long long timediff_us(struct timeval from, struct timeval to) {
   return ((long long)(to.tv_sec - from.tv_sec) * 1000000LL +
@@ -146,12 +147,6 @@ int main(int argc, char *argv[]) {
   gettimeofday(&now, NULL);
   last = now;
 
-  uint64_t cnt_input_done = 0;
-  uint64_t cnt_input_rcvd = 0;
-  uint64_t cnt_output_done = 0;
-
-  bool stop = false;
-
   while (!done) {
     stream->pollZmq();
 
@@ -191,22 +186,26 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    if (stop && (!stream->inputFilesPending()) &&
-        (!stream->outputFilesPending()) && (!stream->refFilesPending())) {
+    if (stream->isDone()) {
       done = true;
     }
 
     gettimeofday(&now, NULL);
-    if (timediff_us(last, now) > 1000000) {
-      cout << "Input Received: " << cnt_input_rcvd
-           << ", Input done: " << cnt_input_done
-           << ", Output done: " << cnt_output_done << endl;
+    if (done || timediff_us(last, now) > 1000000) {
+      streamStatus_t sts = stream->getStatus();
+      printStatusLine(channelId, sts);
       last = now;
     }
   }
 
   cleanup(&stream, &bar, &dev);
   return 0;
+}
+
+void printStatusLine(uint32_t deviceId, struct streamStatus_t sts) {
+      cout << "Input Queued: " << sts.nInputsQueued
+           << ", Input done: " << sts.nInputsDone
+           << ", Output done: " << sts.nOutputsDone << endl;
 }
 
 #if 0

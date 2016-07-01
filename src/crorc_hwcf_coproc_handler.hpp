@@ -32,6 +32,7 @@ struct streamStatus_t {
   uint64_t nOutputsDone;
   uint64_t nRefsQueued;
   uint64_t nRefsDone;
+  bool stopReceived;
 };
 
 class crorc_hwcf_coproc_handler {
@@ -67,6 +68,8 @@ public:
                                  const uint32_t *event);
   int compareEventWithNextRefFile(librorc::EventDescriptor *report,
                                   const uint32_t *event);
+  struct streamStatus_t getStatus();
+  bool isDone();
 
 protected:
   int64_t m_es2host_id;
@@ -92,7 +95,6 @@ protected:
   void *m_zmq_ctx;
   void *m_zmq_skt;
   zmq_pollitem_t m_zmq_pi;
-  int m_stop_rcvd;
 
   struct streamStatus_t m_status;
 };

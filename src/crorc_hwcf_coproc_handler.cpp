@@ -38,8 +38,13 @@ crorc_hwcf_coproc_handler::crorc_hwcf_coproc_handler(librorc::device *dev,
   m_es2dev_id = channelId;
   m_zmq_skt = NULL;
   m_zmq_ctx = NULL;
-  m_stop_rcvd = 0;
-  memset(&m_status, 0, sizeof(struct streamStatus_t));
+  m_status.nInputsQueued = 0;
+  m_status.nInputsDone = 0;
+  m_status.nOutputsQueued = 0;
+  m_status.nOutputsDone = 0;
+  m_status.nRefsQueued = 0;
+  m_status.nRefsDone = 0;
+  m_status.stopReceived = false;
 
   m_es2dev = new librorc::event_stream(dev, bar, m_es2dev_id,
                                        librorc::kEventStreamToDevice);
@@ -222,6 +227,7 @@ int crorc_hwcf_coproc_handler::enqueueNextEventToDevice() {
     return result;
   }
   m_input_iter = m_input_file_list.erase(m_input_iter);
+  m_status.nInputsDone++;
   return 0;
 }
 
@@ -243,7 +249,6 @@ int crorc_hwcf_coproc_handler::pollForEventToDeviceCompletion() {
   if (m_eb2dev_readptr >= buffersize) {
     m_eb2dev_readptr -= buffersize;
   }
-  m_status.nInputsDone++;
   return 0;
 }
 
@@ -253,7 +258,6 @@ bool crorc_hwcf_coproc_handler::pollForEventToHost(
   bool result = m_es2host->getNextEvent(report, event, reference);
   if (result) {
     m_es2host->updateChannelStatus(*report);
-    m_status.nOutputsDone++;
   }
   return result;
 }
@@ -386,7 +390,7 @@ int crorc_hwcf_coproc_handler::pollZmq() {
     }
     std::string rcvd = std::string(zmq_buffer);
     if (rcvd.compare(";;;") == 0) {
-      m_stop_rcvd = true;
+      m_status.stopReceived = true;
       return 0;
     }
     size_t found = rcvd.find_first_of(";");
@@ -411,4 +415,15 @@ int crorc_hwcf_coproc_handler::pollZmq() {
     }
   }
   return 0;
+}
+
+struct streamStatus_t crorc_hwcf_coproc_handler::getStatus() {
+  struct streamStatus_t statuscopy;
+  memcpy(&statuscopy, &m_status, sizeof(struct streamStatus_t));
+  return statuscopy;
+}
+
+bool crorc_hwcf_coproc_handler::isDone() {
+  return m_status.stopReceived && !inputFilesPending() &&
+         !outputFilesPending() && !refFilesPending();
 }
