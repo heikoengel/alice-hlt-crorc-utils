@@ -70,6 +70,7 @@ int fcf_mapping::readMappingFile(const char *filename, uint32_t rcuVersion) {
   }
   std::ifstream infile(filename);
   if (infile.bad() or infile.fail()) {
+    errno = EBADF;
     return -1;
   }
   const unsigned bufSize = 4096;
