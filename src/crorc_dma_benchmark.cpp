@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
       pg[i]->disable();
       pg[i]->configureMode(PG_PATTERN_INC, 0, 0);
       pg[i]->setPrbsSize(0x100, 0x3f0000);
-      es[i]->overridePciePacketSize(128);
+      //es[i]->overridePciePacketSize(128);
       es[i]->initializeDma(2*i, EVENTBUFFER_SIZE);
       es[i]->m_link->setChannelActive(0);
       es[i]->m_link->setFlowControlEnable(1);
@@ -87,6 +87,7 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
+  es[0]->m_sm->clearMaxPcieDeadtime();
   cout << "Starting PatternGenerators..." << endl;
   for (i = 0; i < max_channels; i++) {
     pg[i]->enable();
@@ -113,16 +114,20 @@ int main(int argc, char *argv[]) {
     for (i = 0; i < max_channels; i++) {
       if (es[i]->getNextEvent(&report, &event, &librorcReference)) {
         es[i]->updateChannelStatus(report);
-        totalBytes += (report->calc_event_size << 2);
+        uint32_t bytesize = (report->calc_event_size & 0x3fffffff) << 2;
+        totalBytes += bytesize;
         es[i]->releaseEvent(librorcReference);
       }
     }
     double tdiff = librorc::gettimeofdayDiff(tLast, tNow);
     if (tdiff > 1.0) {
+      float deadtime = es[0]->m_sm->maxPcieDeadtime();
+      es[0]->m_sm->clearMaxPcieDeadtime();
       uint64_t bytesDiff = totalBytes - lastBytes;
-      double totalRate = ((bytesDiff/tdiff)/1024.0/1024.0);
+      double totalRate = ((bytesDiff/tdiff)/1000.0/1000.0);
       cout << totalRate << " MB/s, " << totalRate / max_channels
-           << " MB/s per channel" << endl;
+           << " MB/s per channel, max. Deadtime: " << deadtime
+           << " us" << endl;
       lastBytes = totalBytes;
       tLast = tNow;
     }
