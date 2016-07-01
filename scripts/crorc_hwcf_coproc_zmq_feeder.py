@@ -56,12 +56,12 @@ for root, dirnames, filenames in os.walk(args.indir):
     ddlid = int(idgrp.group(1))
     patchid = ddlid2patch(ddlid)
     rel_inpath = os.path.relpath(os.path.join(root, filename), args.indir)
-    infilename = os.path.join(root, filename)
+    infilename = os.path.abspath(os.path.join(root, filename))
     #refpath_tmp = os.path.join(args.refdir, rel_inpath)
     reffilename = "" #refpath_tmp.replace("TPC_", "TPC_HWCLUST1_")[:-4]
     if args.outdir:
       outpath_tmp = os.path.join(args.outdir, rel_inpath)
-      outfilename = outpath_tmp #.replace("TPC_", "FCF_")
+      outfilename = os.path.abspath(outpath_tmp.replace("TPC_", "FCF_"))
       if not os.path.exists(os.path.dirname(outfilename)):
         os.makedirs(os.path.dirname(outfilename))
     else:
