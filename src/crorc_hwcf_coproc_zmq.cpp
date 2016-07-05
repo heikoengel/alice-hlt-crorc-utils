@@ -28,8 +28,7 @@
 #define HELP_TEXT                                                              \
   "usage: crorc_hwcf_coproc [parameters]\n"                                    \
   "    -n [Id]          Device ID, default:0\n"                                \
-  "    -c [Id]          Channel ID, default:0\n"                               \
-  "    -p [tpcPatch]    TPC Patch ID, default:0\n"                             \
+  "    -c [Id]          optional channel ID, default:all\n"                    \
   "    -r [rcuVersion]  TPC RCU version, default:1\n"                          \
   "    -m [mappingfile] Path to AliRoot TPC Row Mapping File\n"
 
@@ -45,14 +44,9 @@ using namespace std;
 /**
  * Prototypes
  **/
-int configureFcf(librorc::fastclusterfinder *fcf, char *mapping);
-std::vector<librorc::ScatterGatherEntry> eventToBuffer(const char *filename,
-                                                       librorc::buffer *buffer);
-void cleanup(crorc_hwcf_coproc_handler **stream, librorc::bar **bar,
-             librorc::device **dev);
 void checkHwcfFlags(librorc::EventDescriptor *report,
                     const char *outputFileName);
-void printStatusLine(uint32_t deviceId, struct streamStatus_t sts);
+void printStatusLine(uint32_t channelId, struct streamStatus_t sts);
 
 inline long long timediff_us(struct timeval from, struct timeval to) {
   return ((long long)(to.tv_sec - from.tv_sec) * 1000000LL +
@@ -75,12 +69,11 @@ void abort_handler(int s) {
  **/
 int main(int argc, char *argv[]) {
   int deviceId = 0;
-  int channelId = 0;
+  int channelId = -1;
   char *mappingfile = NULL;
-  uint32_t tpcPatch = 0;
   uint32_t rcuVersion = 1;
   int arg;
-  while ((arg = getopt(argc, argv, "hn:c:m:p:r:")) != -1) {
+  while ((arg = getopt(argc, argv, "hn:c:m:r:")) != -1) {
     switch (arg) {
     case 'h':
       cout << HELP_TEXT;
@@ -90,9 +83,6 @@ int main(int argc, char *argv[]) {
       break;
     case 'c':
       channelId = strtoul(optarg, NULL, 0);
-      break;
-    case 'p':
-      tpcPatch = strtoul(optarg, NULL, 0);
       break;
     case 'r':
       rcuVersion = strtoul(optarg, NULL, 0);
@@ -109,33 +99,81 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  crorc_hwcf_coproc_handler *stream = NULL;
   librorc::device *dev = NULL;
   librorc::bar *bar = NULL;
+  librorc::sysmon *sm = NULL;
 
   try {
     dev = new librorc::device(deviceId);
     bar = new librorc::bar(dev, 1);
-    stream = new crorc_hwcf_coproc_handler(dev, bar, channelId, EB_SIZE);
-  } catch (int e) {
+    sm = new librorc::sysmon(bar);
+  }
+  catch (int e) {
     cerr << "ERROR: failed to initialize C-RORC: " << librorc::errMsg(e)
          << endl;
-    cleanup(&stream, &bar, &dev);
+    if (sm) {
+      delete sm;
+    }
+    if (bar) {
+      delete bar;
+    }
+    if (dev) {
+      delete dev;
+    }
     return -1;
   }
 
-  if (stream->initializeClusterFinder(mappingfile, tpcPatch, rcuVersion)) {
-    cerr << "ERROR: Failed to intialize Clusterfinder with mappingfile "
-         << mappingfile << endl;
-    cleanup(&stream, &bar, &dev);
-    return -1;
+  int chStart, chEnd;
+  int nCh;
+  if (channelId < 0) {
+    chStart = 0;
+    chEnd = (sm->numberOfChannels() / 2) - 1;
+    nCh = chEnd + 1;
+  } else {
+    chStart = channelId;
+    chEnd = channelId;
+    nCh = 1;
+  }
+  delete sm;
+
+  crorc_hwcf_coproc_handler *stream[nCh];
+  for (int i = 0; i < nCh; i++) {
+    stream[i] = NULL;
+  }
+  for (int i = 0; i < nCh; i++) {
+    cout << "INFO: initializing channel " << (chStart + i) << "..." << endl;
+    try {
+      stream[i] = new crorc_hwcf_coproc_handler(dev, bar, chStart + i, EB_SIZE);
+    }
+    catch (int e) {
+      cerr << "ERROR: failed to initialize channel " << (chStart + i) << ": "
+           << librorc::errMsg(e) << endl;
+      done = true;
+    }
+
+    if (done) {
+      break;
+    }
+
+    if (stream[i]
+            ->initializeClusterFinder(mappingfile, chStart + i, rcuVersion)) {
+      cerr << "ERROR: Failed to intialize Clusterfinder on channel "
+           << (chStart + i) << " with mappingfile " << mappingfile << endl;
+      done = true;
+    }
+
+    if (done) {
+      break;
+    }
+
+    if (stream[i]->initializeZmq(ZMQ_BASE_PORT + chStart + i)) {
+      cerr << "ERROR: Failed to initialize ZMQ for channel " << (chStart + i)
+           << "." << endl;
+      done = true;
+    }
   }
 
-  if (stream->initializeZmq(ZMQ_BASE_PORT + channelId)) {
-    cerr << "ERROR: Failed to initialize ZMQ." << endl;
-    cleanup(&stream, &bar, &dev);
-    return -1;
-  }
+  cout << "INFO: initialization done, waiting for data..." << endl;
 
   struct sigaction sigIntHandler;
   sigIntHandler.sa_handler = abort_handler;
@@ -148,64 +186,96 @@ int main(int argc, char *argv[]) {
   last = now;
 
   while (!done) {
-    stream->pollZmq();
+    for (int i = 0; i < nCh; i++) {
 
-    if (stream->inputFilesPending()) {
-      int result = stream->enqueueNextEventToDevice();
-      if (result && result != EAGAIN) {
-        cerr << "ERROR: Failed to enqueue event " << stream->nextInputFile()
-             << ", failed with: " << strerror(result) << "(" << result << ")"
-             << endl;
-        cleanup(&stream, &bar, &dev);
-        return -1;
+      // check for new commands via ZMQ
+      stream[i]->pollZmq();
+
+      // push events to device
+      if (stream[i]->inputFilesPending()) {
+        int result = stream[i]->enqueueNextEventToDevice();
+        if (result && result != EAGAIN) {
+          cerr << "ERROR: Failed to enqueue event "
+               << stream[i]->nextInputFile()
+               << ", failed with: " << strerror(result) << "(" << result << ")"
+               << endl;
+          done = true;
+          break;
+        }
+      }
+      if (done) {
+        break;
+      }
+
+      stream[i]->pollForEventToDeviceCompletion();
+
+      // check for events from device
+      if (stream[i]->outputFilesPending() || stream[i]->refFilesPending()) {
+        librorc::EventDescriptor *report = NULL;
+        uint64_t librorcEventReference = 0;
+        const uint32_t *event = NULL;
+        if (stream[i]
+                ->pollForEventToHost(&report, &event, &librorcEventReference)) {
+          if (stream[i]->outputFilesPending()) {
+            checkHwcfFlags(report, stream[i]->nextOutputFile());
+            if (stream[i]->writeEventToNextOutputFile(report, event)) {
+              cerr << "ERROR: Failed to write event to file "
+                   << stream[i]->nextOutputFile() << ": " << strerror(errno)
+                   << endl;
+            }
+          }
+
+          if (stream[i]->refFilesPending()) {
+            if (stream[i]->compareEventWithNextRefFile(report, event)) {
+              cerr << "comparing output with " << stream[i]->nextRefFile()
+                   << " failed:" << strerror(errno) << endl;
+            }
+          }
+          stream[i]->releaseEventToHost(librorcEventReference);
+        }
+      } // *FilesPending
+
+    } // for
+
+    bool all_done = true;
+    for (int i = 0; i < nCh; i++) {
+      if (!stream[i]->isDone()) {
+        all_done = false;
       }
     }
-
-    stream->pollForEventToDeviceCompletion();
-
-    if (stream->outputFilesPending() || stream->refFilesPending()) {
-      librorc::EventDescriptor *report = NULL;
-      uint64_t librorcEventReference = 0;
-      const uint32_t *event = NULL;
-      if (stream->pollForEventToHost(&report, &event, &librorcEventReference)) {
-        if (stream->outputFilesPending()) {
-          checkHwcfFlags(report, stream->nextOutputFile());
-          if (stream->writeEventToNextOutputFile(report, event)) {
-            cerr << "ERROR: Failed to write event to file "
-                 << stream->nextOutputFile() << ": " << strerror(errno) << endl;
-          }
-        }
-
-        if (stream->refFilesPending()) {
-          if (stream->compareEventWithNextRefFile(report, event)) {
-            cerr << "comparing output with " << stream->nextRefFile()
-                 << " failed:" << strerror(errno) << endl;
-          }
-        }
-        stream->releaseEventToHost(librorcEventReference);
-      }
-    }
-
-    if (stream->isDone()) {
-      done = true;
-    }
+    done |= all_done;
 
     gettimeofday(&now, NULL);
     if (done || timediff_us(last, now) > 1000000) {
-      streamStatus_t sts = stream->getStatus();
-      printStatusLine(channelId, sts);
+      if (done) {
+        cout << "=========== stopping ==========" << endl;
+      }
+      for (int i = 0; i < nCh; i++) {
+        streamStatus_t sts = stream[i]->getStatus();
+        printStatusLine(chStart + i, sts);
+      }
       last = now;
     }
-  }
+  } // while(!done)
 
-  cleanup(&stream, &bar, &dev);
+  for (int i = 0; i < nCh; i++) {
+    if (stream[i]) {
+      delete stream[i];
+    }
+  }
+  if (bar) {
+    delete bar;
+  }
+  if (dev) {
+    delete dev;
+  }
   return 0;
 }
 
-void printStatusLine(uint32_t deviceId, struct streamStatus_t sts) {
-      cout << "Input Queued: " << sts.nInputsQueued
-           << ", Input done: " << sts.nInputsDone
-           << ", Output done: " << sts.nOutputsDone << endl;
+void printStatusLine(uint32_t channelId, struct streamStatus_t sts) {
+  cout << "Ch: " << channelId << " Input Queued: " << sts.nInputsQueued
+       << ", Input done: " << sts.nInputsDone
+       << ", Output done: " << sts.nOutputsDone << endl;
 }
 
 #if 0
@@ -227,21 +297,5 @@ void checkHwcfFlags(librorc::EventDescriptor *report,
   if (hwcfflags & 0x2) {
     printf("WARNING: Found ALTRO channel error flag(s) set in %s\n",
            outputFileName);
-  }
-}
-
-void cleanup(crorc_hwcf_coproc_handler **stream, librorc::bar **bar,
-             librorc::device **dev) {
-  if (*stream) {
-    delete *stream;
-    *stream = NULL;
-  }
-  if (*bar) {
-    delete *bar;
-    *bar = NULL;
-  }
-  if (*dev) {
-    delete *dev;
-    *dev = NULL;
   }
 }

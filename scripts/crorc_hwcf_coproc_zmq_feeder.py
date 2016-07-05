@@ -21,7 +21,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-i', '--indir', help='directory containing raw DDL source files', required=True, type=str)
 parser.add_argument('-r', '--refdir', help='directory containing emulated HWCLUST1 reference files', type=str)
 parser.add_argument('-o', '--outdir', help='output directory', type=str)
-parser.add_argument('-p', '--patch', help='TPC patch', type=int, default=0)
+parser.add_argument('-p', '--patch', help='TPC patch', type=int, default=-1)
 
 #parser.add_argument('-m', '--mapdir', help='directory containing emulated HWCLUST1 reference files', required=True, type=str)
 args = parser.parse_args()
@@ -43,8 +43,16 @@ if args.refdir and not os.path.isdir(args.refdir):
 #    sys.exit(-1)
 
 ctx = zmq.Context()
-skt = ctx.socket(zmq.PUSH)
-skt.connect("tcp://localhost:5555")
+skt = [None]*6
+if args.patch < 0:
+  for i in range(6):
+    skt[i] = ctx.socket(zmq.PUSH)
+    skt[i].connect("tcp://localhost:%d" % (5555 + i))
+else:
+  ch = args.patch
+  skt[ch] = ctx.socket(zmq.PUSH)
+  skt[ch].connect("tcp://localhost:%d" % (5555 + ch))
+
 
 pushcount = 0
 
@@ -71,11 +79,13 @@ for root, dirnames, filenames in os.walk(args.indir):
     #  continue
     #entry = { 'ddlid':ddlid, 'infile':infilename, 'reffile':reffilename, 'outfile':outfilename }
     #ddlfiles[patchid].append(entry)
-    if patchid==args.patch:
-      skt.send("%s;%s;%s" % (infilename, outfilename, reffilename))
+    if (skt[patchid]):
+      skt[patchid].send("%s;%s;%s" % (infilename, outfilename, reffilename))
       pushcount += 1
 
-skt.send(";;;");
+for i in range(6):
+  if (skt[i]):
+    skt[i].send(";;;");
 print "Pushed %d files." % (pushcount)
 exit(0)
 
