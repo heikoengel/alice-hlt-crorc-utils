@@ -8,11 +8,14 @@ SET( UTIL_LIST
   crorc_free_buffers
   crorc_push_file
   crorc_dma_benchmark
+  crorc_dma_in_pgsweep
+  crorc_dma_out
+  crorc_dma_out_pgsweep
   crorc_status_dump )
 
 FOREACH( UTIL ${UTIL_LIST} )
   ADD_EXECUTABLE( ${UTIL} ${UTIL}.cpp )
-  TARGET_LINK_LIBRARIES( ${UTIL} ${LIBRORC_LIBRARY} ${EXTRA_LIBS} )
+  TARGET_LINK_LIBRARIES( ${UTIL} ${LIBRORC_LIBRARY} ${EXTRA_LIBS} pthread )
   INSTALL( TARGETS ${UTIL} RUNTIME DESTINATION bin )
 ENDFOREACH( UTIL )
 
