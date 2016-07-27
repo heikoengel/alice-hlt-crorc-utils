@@ -81,6 +81,7 @@ int main(int argc, char *argv[]) {
   char *dumpDir = NULL;
   uint32_t tpcPatch = 0;
   uint32_t rcuVersion = 1;
+  uint32_t pciPacketSize = 0;
 
   static struct option long_options[] = {
     { "device", required_argument, 0, 'n' },
@@ -93,12 +94,13 @@ int main(int argc, char *argv[]) {
     { "dump", required_argument, 0, 'd' },
     { "reffile", required_argument, 0, 'f' },
     { "rcuversion", required_argument, 0, 'r' },
+    { "packetsize", required_argument, 0, 'P' },
     { "help", no_argument, 0, 'h' },
     { 0, 0, 0, 0 }
   };
 
   int opt;
-  while ((opt = getopt_long(argc, argv, "n:c:f:S:s:m:p:hd:r:", long_options,
+  while ((opt = getopt_long(argc, argv, "n:c:f:S:s:m:p:hd:r:P:", long_options,
                             NULL)) != -1) {
     switch (opt) {
     case 'n':
@@ -115,6 +117,9 @@ int main(int argc, char *argv[]) {
       break;
     case 'r':
       rcuVersion = strtoul(optarg, NULL, 0);
+      break;
+    case 'P':
+      pciPacketSize = strtoul(optarg, NULL, 0);
       break;
     case 's':
       if (strcmp(optarg, "diu") == 0) {
@@ -222,6 +227,9 @@ int main(int argc, char *argv[]) {
   es->m_channel->clearEventCount();
   es->m_channel->clearStallCount();
   es->m_channel->readAndClearPtrStallFlags();
+  if (pciPacketSize) {
+    es->m_channel->setPciePacketSize(pciPacketSize);
+  }
   es->m_link->setFlowControlEnable(1);
   es->m_link->setChannelActive(1);
 
