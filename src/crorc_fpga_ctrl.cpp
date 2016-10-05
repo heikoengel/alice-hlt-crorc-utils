@@ -236,6 +236,7 @@ typedef struct {
   int gtxStatus;
   int ddlClearCounters;
   int refclkReset;
+  int refclkStatus;
   int ddlStatus;
   int ddlDeadtime;
   int diuInitRemoteDiu;
@@ -333,6 +334,7 @@ int main(int argc, char *argv[]) {
       {"listrorcs", no_argument, 0, 'l'},
       {"pciedeadtime", no_argument, &(cmd.pcieDeadtime), 1},
       {"refclkreset", no_argument, &(cmd.refclkReset), 1},
+      {"refclkstatus", no_argument, &(cmd.refclkStatus), 1},
       {0, 0, 0, 0}};
   int nargs = sizeof(long_options) / sizeof(option);
 
@@ -781,6 +783,18 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  if (cmd.refclkStatus) {
+    cout << "Stored RefClk Freq.: " << rorc->m_sm->refclkFreq() << " Hz"
+         << endl;
+    try {
+      librorc::refclkopts refclkopts = rorc->m_refclk->getCurrentOpts(0);
+      cout << "Read RefClk Freq.  : " << rorc->m_refclk->getFout(refclkopts)
+           << " MHz" << endl;
+    } catch (int e) {
+      cout << "ERROR: Failed to read from RefClk: " << librorc::errMsg(e)
+           << endl;
+    }
+  }
 
   // GTX-DRP setters require GTX and QSFP to be in reset
   if (cmd.gtxRxTerm.set || cmd.gtxRxAcCapDisable.set) {
