@@ -15,6 +15,6 @@ do
   PID=${LOGPATH}/pgdma_$(hostname)_${DEV}_${CH}.pid
   LOG=${LOGPATH}/pgdma_$(hostname)_${DEV}_${CH}
   echo "Starting PatterGenerator DMA on device ${DEV} Channel ${CH}"
-  daemonize -o $LOG.log -e $LOG.err -p $PID -l $PID ${BINPATH} --dev $DEV --ch $CH --size $SIZE --source pg --packetsize 64
+  daemonize -o $LOG.log -e $LOG.err -p $PID -l $PID ${BINPATH} --dev $DEV --ch $CH --size $SIZE --source pg --packetsize 256
   sleep 1
 done

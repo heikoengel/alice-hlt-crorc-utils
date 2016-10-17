@@ -122,9 +122,10 @@ int main(int argc, char *argv[]) {
   int32_t shID[LIBRORC_MAX_DMA_CHANNELS];
   char *shm[LIBRORC_MAX_DMA_CHANNELS];
   int arg;
+  int nChannels = 0;
 
   /** parse command line arguments **/
-  while ((arg = getopt(argc, argv, "hn:")) != -1) {
+  while ((arg = getopt(argc, argv, "hn:c:")) != -1) {
     switch (arg) {
     case 'n':
       DeviceId = strtol(optarg, NULL, 0);
@@ -132,6 +133,9 @@ int main(int argc, char *argv[]) {
     case 'h':
       cout << HELP_TEXT;
       return 0;
+    case 'c':
+      nChannels = strtol(optarg, NULL, 0);
+      break;
     default:
       cout << "Unknown parameter (" << arg << ")!" << endl;
       cout << HELP_TEXT;
@@ -184,7 +188,8 @@ int main(int argc, char *argv[]) {
 
   uint32_t maxPayloadSize = 128;//dev->maxPayloadSize();
   uint32_t startChannel = 0;
-  uint32_t endChannel = sm->numberOfChannels() - 1;
+  uint32_t endChannel =
+      (nChannels == 0) ? (sm->numberOfChannels() - 1) : (nChannels - 1);
 
   struct sigaction sigIntHandler;
   sigIntHandler.sa_handler = abort_handler;
