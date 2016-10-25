@@ -11,7 +11,8 @@ SET( UTIL_LIST
   crorc_dma_in_pgsweep
   crorc_dma_out
   crorc_dma_out_pgsweep
-  crorc_status_dump )
+  crorc_status_dump
+  crorc_event_counts )
 
 FOREACH( UTIL ${UTIL_LIST} )
   ADD_EXECUTABLE( ${UTIL} ${UTIL}.cpp )

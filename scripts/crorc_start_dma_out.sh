@@ -10,7 +10,7 @@ BINPATH=$(which crorc_dma_out)
 
 mkdir -p $LOGPATH
 
-for CH in {0..11}
+for CH in {0..3}
 do
   PID=${LOGPATH}/pgdma_$(hostname)_${DEV}_${CH}.pid
   LOG=${LOGPATH}/pgdma_$(hostname)_${DEV}_${CH}
