@@ -115,9 +115,9 @@ main
         link->setChannelActive(0);
         link->setFlowControlEnable(0);
         ch->disable();
-        ch->clearStallCount();
-        ch->clearEventCount();
-        ch->readAndClearPtrStallFlags();
+        //ch->clearStallCount();
+        //ch->clearEventCount();
+        //ch->readAndClearPtrStallFlags();
         ch->setRateLimit(0);
 
 
@@ -157,10 +157,10 @@ main
                         librorc::diu *diu = new librorc::diu(link);
                         diu->setReset(1);
                         diu->setEnable(0);
-                        diu->clearEventcount();
-                        diu->clearDdlDeadtime();
-                        diu->clearDmaDeadtime();
-                        diu->clearAllLastStatusWords();
+                        //diu->clearEventcount();
+                        //diu->clearDdlDeadtime();
+                        //diu->clearDmaDeadtime();
+                        //diu->clearAllLastStatusWords();
                         diu->setReset(0);
                         delete diu;
 
@@ -180,9 +180,9 @@ main
                         librorc::siu *siu = new librorc::siu(link);
                         siu->setReset(0);
                         siu->setEnable(0);
-                        siu->clearEventcount();
-                        siu->clearDdlDeadtime();
-                        siu->clearDmaDeadtime();
+                        //siu->clearEventcount();
+                        //siu->clearDdlDeadtime();
+                        //siu->clearDmaDeadtime();
                         delete siu;
                     }
                     break;
@@ -191,7 +191,7 @@ main
                     {
                         librorc::ddl *ddlraw = new librorc::ddl(link);
                         ddlraw->setEnable(0);
-                        ddlraw->clearDmaDeadtime();
+                        //ddlraw->clearDmaDeadtime();
                         delete ddlraw;
                     }
                     break;
