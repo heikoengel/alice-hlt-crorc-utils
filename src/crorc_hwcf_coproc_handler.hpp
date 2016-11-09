@@ -68,6 +68,7 @@ public:
                                  const uint32_t *event);
   int compareEventWithNextRefFile(librorc::EventDescriptor *report,
                                   const uint32_t *event);
+  uint64_t eventsInChain() { return m_eventsInChain; };
   struct streamStatus_t getStatus();
   bool isDone();
 
@@ -76,6 +77,7 @@ protected:
   int64_t m_es2dev_id;
   uint64_t m_eb2dev_writeptr;
   uint64_t m_eb2dev_readptr;
+  uint64_t m_eventsInChain;
   librorc::event_stream *m_es2host;
   librorc::event_stream *m_es2dev;
   librorc::fastclusterfinder *m_fcf;

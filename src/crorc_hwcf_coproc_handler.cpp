@@ -38,6 +38,7 @@ crorc_hwcf_coproc_handler::crorc_hwcf_coproc_handler(librorc::device *dev,
   m_es2dev_id = channelId;
   m_zmq_skt = NULL;
   m_zmq_ctx = NULL;
+  m_eventsInChain = 0;
   m_status.nInputsQueued = 0;
   m_status.nInputsDone = 0;
   m_status.nOutputsQueued = 0;
@@ -228,6 +229,7 @@ int crorc_hwcf_coproc_handler::enqueueNextEventToDevice() {
   }
   m_input_iter = m_input_file_list.erase(m_input_iter);
   m_status.nInputsDone++;
+  m_eventsInChain++;
   return 0;
 }
 
@@ -258,6 +260,7 @@ bool crorc_hwcf_coproc_handler::pollForEventToHost(
   bool result = m_es2host->getNextEvent(report, event, reference);
   if (result) {
     m_es2host->updateChannelStatus(*report);
+    m_eventsInChain--;
   }
   return result;
 }
