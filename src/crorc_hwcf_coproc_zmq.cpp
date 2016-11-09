@@ -46,6 +46,9 @@ using namespace std;
  **/
 void checkHwcfFlags(librorc::EventDescriptor *report,
                     const char *outputFileName);
+void printEventStatsHeader();
+void printEventStats(crorc_hwcf_coproc_handler *stream,
+                     librorc::EventDescriptor *report, const uint32_t *event);
 void printStatusLine(uint32_t channelId, struct streamStatus_t sts);
 
 inline long long timediff_us(struct timeval from, struct timeval to) {
@@ -123,6 +126,11 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
+  time_t rawtime;
+  time(&rawtime);
+  printf("# Date: %s# Firmware Rev.: %07x, Firmware Date: %08x, RCU%d\n",
+         ctime(&rawtime), sm->FwRevision(), sm->FwBuildDate(), rcuVersion);
+
   int chStart, chEnd;
   int nCh;
   if (channelId < 0) {
@@ -141,7 +149,7 @@ int main(int argc, char *argv[]) {
     stream[i] = NULL;
   }
   for (int i = 0; i < nCh; i++) {
-    cout << "INFO: initializing channel " << (chStart + i) << "..." << endl;
+    //cout << "INFO: initializing channel " << (chStart + i) << "..." << endl;
     try {
       stream[i] = new crorc_hwcf_coproc_handler(dev, bar, chStart + i, EB_SIZE);
     }
@@ -173,7 +181,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  cout << "INFO: initialization done, waiting for data..." << endl;
+  //cout << "INFO: initialization done, waiting for data..." << endl;
 
   struct sigaction sigIntHandler;
   sigIntHandler.sa_handler = abort_handler;
@@ -185,6 +193,7 @@ int main(int argc, char *argv[]) {
   gettimeofday(&now, NULL);
   last = now;
 
+  printEventStatsHeader();
   while (!done) {
     for (int i = 0; i < nCh; i++) {
 
@@ -192,7 +201,7 @@ int main(int argc, char *argv[]) {
       stream[i]->pollZmq();
 
       // push events to device
-      if (stream[i]->inputFilesPending()) {
+      if (stream[i]->inputFilesPending() && stream[i]->eventsInChain() == 0) {
         int result = stream[i]->enqueueNextEventToDevice();
         if (result && result != EAGAIN) {
           cerr << "ERROR: Failed to enqueue event "
@@ -210,42 +219,42 @@ int main(int argc, char *argv[]) {
       stream[i]->pollForEventToDeviceCompletion();
 
       // check for events from device
-      if (stream[i]->outputFilesPending() || stream[i]->refFilesPending()) {
-        librorc::EventDescriptor *report = NULL;
-        uint64_t librorcEventReference = 0;
-        const uint32_t *event = NULL;
-        if (stream[i]
-                ->pollForEventToHost(&report, &event, &librorcEventReference)) {
-          if (stream[i]->outputFilesPending()) {
-            checkHwcfFlags(report, stream[i]->nextOutputFile());
-            if (stream[i]->writeEventToNextOutputFile(report, event)) {
-              cerr << "ERROR: Failed to write event to file "
-                   << stream[i]->nextOutputFile() << ": " << strerror(errno)
-                   << endl;
-            }
-          }
+      librorc::EventDescriptor *report = NULL;
+      uint64_t librorcEventReference = 0;
+      const uint32_t *event = NULL;
+      if (stream[i]
+	  ->pollForEventToHost(&report, &event, &librorcEventReference)) {
+	if (stream[i]->outputFilesPending()) {
+	  checkHwcfFlags(report, stream[i]->nextOutputFile());
+	  if (stream[i]->writeEventToNextOutputFile(report, event)) {
+	    cerr << "ERROR: Failed to write event to file "
+		 << stream[i]->nextOutputFile() << ": " << strerror(errno)
+		 << endl;
+	  }
+	}
 
-          if (stream[i]->refFilesPending()) {
-            if (stream[i]->compareEventWithNextRefFile(report, event)) {
-              cerr << "comparing output with " << stream[i]->nextRefFile()
-                   << " failed:" << strerror(errno) << endl;
-            }
-          }
-          stream[i]->releaseEventToHost(librorcEventReference);
-        }
-      } // *FilesPending
+	if (stream[i]->refFilesPending()) {
+	  if (stream[i]->compareEventWithNextRefFile(report, event)) {
+	    cerr << "comparing output with " << stream[i]->nextRefFile()
+		 << " failed:" << strerror(errno) << endl;
+	  }
+	}
+	printEventStats(stream[i], report, event);
+	stream[i]->fcfClearStats();
+	stream[i]->releaseEventToHost(librorcEventReference);
+      }
 
     } // for
 
     bool all_done = true;
     for (int i = 0; i < nCh; i++) {
-      if (!stream[i]->isDone()) {
+      if (!stream[i]->isDone() || stream[i]->eventsInChain() > 0) {
         all_done = false;
       }
     }
     done |= all_done;
 
-    gettimeofday(&now, NULL);
+    /*gettimeofday(&now, NULL);
     if (done || timediff_us(last, now) > 1000000) {
       if (done) {
         cout << "=========== stopping ==========" << endl;
@@ -255,7 +264,7 @@ int main(int argc, char *argv[]) {
         printStatusLine(chStart + i, sts);
       }
       last = now;
-    }
+      }*/
   } // while(!done)
 
   for (int i = 0; i < nCh; i++) {
@@ -298,4 +307,32 @@ void checkHwcfFlags(librorc::EventDescriptor *report,
     printf("WARNING: Found ALTRO channel error flag(s) set in %s\n",
            outputFileName);
   }
+}
+
+void printEventStatsHeader() {
+  printf("# inputSize, outputSize, nClusters, "
+         "procTimeCC, inputIdleTimeCC, xoffTimeCC, "
+         "numCandidates, mergerIdlePercent, fifoMergerMax, fifoDividerMax, "
+         "file\n");
+}
+
+void printEventStats(crorc_hwcf_coproc_handler *stream,
+                     librorc::EventDescriptor *report, const uint32_t *event) {
+  uint32_t dmaWords = (report->calc_event_size & 0x3fffffff);
+  uint32_t outputSize = dmaWords << 2;
+  uint32_t procTimeCC = stream->fcfProcTimeCC();
+  uint32_t inputIdleTimeCC = stream->fcfInputIdleTimeCC();
+  uint32_t xoffTimeCC = stream->fcfXoffTimeCC();
+  uint32_t hdrTrlSize = (10 + 9) * sizeof(uint32_t);
+  uint32_t nClusters = (outputSize - hdrTrlSize) / (6 * sizeof(uint32_t));
+  uint32_t inputSize =
+      (dmaWords > 9) ? (event[dmaWords - 9] * 4 + hdrTrlSize) : 0;
+  float mergerIdlePercent = stream->fcfMergerIdlePercent();
+  uint32_t numCandidates = stream->fcfNumCandidates();
+  uint32_t fifoMergerMax = stream->fcfMergerInputFifoMax();
+  uint32_t fifoDividerMax = stream->fcfDividerInputFifoMax();
+  printf("%u, %u, %u, %u, %u, %u, %u, %f, %d, %d, %s\n", inputSize, outputSize,
+         nClusters, procTimeCC, inputIdleTimeCC, xoffTimeCC, numCandidates,
+         mergerIdlePercent, fifoMergerMax, fifoDividerMax,
+         stream->lastInputFile());
 }

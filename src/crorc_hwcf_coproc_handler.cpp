@@ -46,6 +46,9 @@ crorc_hwcf_coproc_handler::crorc_hwcf_coproc_handler(librorc::device *dev,
   m_status.nRefsQueued = 0;
   m_status.nRefsDone = 0;
   m_status.stopReceived = false;
+  m_input_file_list.clear();
+  m_input_iter = m_input_file_list.begin();
+  m_input_end = m_input_file_list.end();
 
   m_es2dev = new librorc::event_stream(dev, bar, m_es2dev_id,
                                        librorc::kEventStreamToDevice);
@@ -146,6 +149,7 @@ int crorc_hwcf_coproc_handler::initializeClusterFinder(
 
   m_fcf->setReset(0);
   m_fcf->setEnable(1);
+  m_es2host->m_link->setDdlReg(RORC_REG_DDL_DEADTIME, 0);
   return 0;
 }
 
@@ -227,6 +231,7 @@ int crorc_hwcf_coproc_handler::enqueueNextEventToDevice() {
   if (result) {
     return result;
   }
+  m_last_input = *m_input_iter;
   m_input_iter = m_input_file_list.erase(m_input_iter);
   m_status.nInputsDone++;
   m_eventsInChain++;
@@ -324,6 +329,13 @@ int crorc_hwcf_coproc_handler::writeEventToNextOutputFile(
   return 0;
 }
 
+void crorc_hwcf_coproc_handler::markRefFileDone() {
+  if (m_ref_iter != m_ref_end) {
+    m_ref_iter = m_ref_file_list.erase(m_ref_iter);
+    m_status.nRefsDone++;
+  }
+}
+
 int crorc_hwcf_coproc_handler::compareEventWithNextRefFile(
     librorc::EventDescriptor *report, const uint32_t *event) {
   // open DDL file
@@ -356,8 +368,7 @@ int crorc_hwcf_coproc_handler::compareEventWithNextRefFile(
     errno = EILSEQ;
     return -1;
   }
-  m_ref_iter = m_ref_file_list.erase(m_ref_iter);
-  m_status.nRefsDone++;
+  markRefFileDone();
   return 0;
 }
 
@@ -429,4 +440,48 @@ struct streamStatus_t crorc_hwcf_coproc_handler::getStatus() {
 bool crorc_hwcf_coproc_handler::isDone() {
   return m_status.stopReceived && !inputFilesPending() &&
          !outputFilesPending() && !refFilesPending();
+}
+
+uint32_t crorc_hwcf_coproc_handler::fcfProcTimeCC() {
+  return m_es2host->m_link->ddlReg(RORC_REG_FCF_MP_TIMER_IDLE);
+}
+
+uint32_t crorc_hwcf_coproc_handler::fcfNumCandidates() {
+  return m_es2host->m_link->ddlReg(RORC_REG_FCF_MP_NUM_CLUSTERS);
+}
+
+float crorc_hwcf_coproc_handler::fcfMergerIdlePercent() {
+  uint32_t idleTimeCC = m_es2host->m_link->ddlReg(RORC_REG_FCF_MP_IDLE_TIME);
+  uint32_t totalTimeCC = m_es2host->m_link->ddlReg(RORC_REG_FCF_MP_TOTAL_TIME);
+  return 100.0 * idleTimeCC / totalTimeCC;
+}
+
+uint32_t crorc_hwcf_coproc_handler::fcfInputIdleTimeCC() {
+  uint32_t idleTime = m_es2host->m_link->ddlReg(RORC_REG_DDL_EC);
+  if (idleTime) {
+    m_es2host->m_link->setDdlReg(RORC_REG_DDL_EC, 0);
+  }
+  return idleTime;
+}
+
+uint32_t crorc_hwcf_coproc_handler::fcfXoffTimeCC() {
+  uint32_t deadtime = m_es2host->m_link->ddlReg(RORC_REG_DDL_DEADTIME);
+  if (deadtime > 0) {
+    m_es2host->m_link->setDdlReg(RORC_REG_DDL_DEADTIME, 0);
+  }
+  return deadtime;
+}
+
+uint32_t crorc_hwcf_coproc_handler::fcfMergerInputFifoMax() {
+  uint32_t max =  m_es2host->m_link->ddlReg(RORC_REG_FCF_STS_CFD);
+  return max;
+}
+
+uint32_t crorc_hwcf_coproc_handler::fcfDividerInputFifoMax() {
+  uint32_t max =  m_es2host->m_link->ddlReg(RORC_REG_FCF_STS_DIV);
+  return max;
+}
+
+void crorc_hwcf_coproc_handler::fcfClearStats() {
+  m_fcf->clearErrors();
 }

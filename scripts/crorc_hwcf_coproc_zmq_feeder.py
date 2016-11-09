@@ -54,7 +54,7 @@ else:
   skt[ch].connect("tcp://localhost:%d" % (5555 + ch))
 
 
-pushcount = 0
+pushcount = [0]*6
 
 for root, dirnames, filenames in os.walk(args.indir):
   for filename in filenames:
@@ -81,12 +81,12 @@ for root, dirnames, filenames in os.walk(args.indir):
     #ddlfiles[patchid].append(entry)
     if (skt[patchid]):
       skt[patchid].send("%s;%s;%s" % (infilename, outfilename, reffilename))
-      pushcount += 1
+      pushcount[patchid] += 1
 
 for i in range(6):
   if (skt[i]):
     skt[i].send(";;;");
-print "Pushed %d files." % (pushcount)
+  print "Patch %d: Pushed %d files." % (i, pushcount[i])
 exit(0)
 
 #procs = []
@@ -109,7 +109,6 @@ exit(0)
 #    print ' '.join(cmd)
 #    print err
 #  #procs.append(subprocess.Popen(cmd))
-  
+
 #for p in procs:
   #p.wait()
-  

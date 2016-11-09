@@ -60,6 +60,7 @@ public:
   bool inputFilesPending();
   bool outputFilesPending();
   bool refFilesPending();
+  const char *lastInputFile() { return m_last_input.c_str(); };
   const char *nextInputFile() { return m_input_iter->c_str(); };
   const char *nextRefFile() { return m_ref_iter->c_str(); };
   const char *nextOutputFile() { return m_output_iter->c_str(); };
@@ -69,10 +70,21 @@ public:
   int compareEventWithNextRefFile(librorc::EventDescriptor *report,
                                   const uint32_t *event);
   uint64_t eventsInChain() { return m_eventsInChain; };
+  uint32_t fcfProcTimeCC();
+  uint32_t fcfInputIdleTimeCC();
+  uint32_t fcfXoffTimeCC();
+  uint32_t fcfNumCandidates();
+  float fcfMergerIdlePercent();
+  uint32_t fcfMergerInputFifoMax();
+  uint32_t fcfDividerInputFifoMax();
+  void fcfClearStats();
   struct streamStatus_t getStatus();
   bool isDone();
 
+  void markRefFileDone();
+
 protected:
+  std::string m_last_input;
   int64_t m_es2host_id;
   int64_t m_es2dev_id;
   uint64_t m_eb2dev_writeptr;
