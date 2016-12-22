@@ -267,10 +267,10 @@ int main(int argc, char *argv[]) {
 
   // set up event checker
   event_checker *checker = new event_checker(deviceId, channelId, logdir);
-  uint32_t check_mask = CHK_SIZES | CHK_DIU_ERR;
+  uint32_t check_mask = EC_CHK_SIZES | EC_CHK_DIU_ERR;
   if (refFile) {
     checker->addRefFile(refFile);
-    check_mask |= CHK_FILE;
+    check_mask |= EC_CHK_FILE;
   }
   int error_mask = 0;
 
