@@ -4,7 +4,7 @@
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or 
+ *  the Free Software Foundation, either version 3 of the License, or
  *  (at your option) any later version.
  *
  *  This program is distributed in the hope that it will be useful,
@@ -220,6 +220,7 @@ bool crorc::isOpticalLink(uint32_t i) {
   case RORC_CFG_LINK_TYPE_SIU:
   case RORC_CFG_LINK_TYPE_DIU:
   case RORC_CFG_LINK_TYPE_LINKTEST:
+  case RORC_CFG_LINK_TYPE_GBT:
     isOptical = true;
     break;
   default:
