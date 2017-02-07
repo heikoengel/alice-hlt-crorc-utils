@@ -250,6 +250,9 @@ const char *crorc::linkTypeDescr(uint32_t i) {
   case RORC_CFG_LINK_TYPE_SIU:
     descr = "SIU";
     break;
+  case RORC_CFG_LINK_TYPE_GBT:
+    descr = "GBT";
+    break;
   default:
     descr = "UNKNOWN";
     break;
