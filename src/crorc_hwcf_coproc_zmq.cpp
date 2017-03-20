@@ -30,7 +30,9 @@
   "    -n [Id]          Device ID, default:0\n"                                \
   "    -c [Id]          optional channel ID, default:all\n"                    \
   "    -r [rcuVersion]  TPC RCU version, default:1\n"                          \
-  "    -m [mappingfile] Path to AliRoot TPC Row Mapping File\n"
+  "    -m [mappingfile] Path to AliRoot TPC Row Mapping File\n"                \
+  "    -b               batch mode, queue multiple events at onece and "       \
+  "                     don't print stats after each event.\n"
 
 #define ES2HOST_EB_ID 0
 #define ES2DEV_EB_ID 2
@@ -44,12 +46,11 @@ using namespace std;
 /**
  * Prototypes
  **/
-void checkHwcfFlags(librorc::EventDescriptor *report,
-                    const char *outputFileName);
+void checkHwcfFlags(librorc::EventDescriptor *report, string outputFileName);
 void printEventStatsHeader();
 void printEventStats(crorc_hwcf_coproc_handler *stream,
                      librorc::EventDescriptor *report, const uint32_t *event);
-void printStatusLine(uint32_t channelId, struct streamStatus_t sts);
+void printStatusLine(uint32_t channelId, crorc_hwcf_coproc_handler *stream);
 
 inline long long timediff_us(struct timeval from, struct timeval to) {
   return ((long long)(to.tv_sec - from.tv_sec) * 1000000LL +
@@ -75,8 +76,9 @@ int main(int argc, char *argv[]) {
   int channelId = -1;
   char *mappingfile = NULL;
   uint32_t rcuVersion = 1;
+  bool batchMode = false;
   int arg;
-  while ((arg = getopt(argc, argv, "hn:c:m:r:")) != -1) {
+  while ((arg = getopt(argc, argv, "hn:c:m:r:b")) != -1) {
     switch (arg) {
     case 'h':
       cout << HELP_TEXT;
@@ -89,6 +91,9 @@ int main(int argc, char *argv[]) {
       break;
     case 'r':
       rcuVersion = strtoul(optarg, NULL, 0);
+      break;
+    case 'b':
+      batchMode = true;
       break;
     case 'm':
       mappingfile = optarg;
@@ -149,7 +154,7 @@ int main(int argc, char *argv[]) {
     stream[i] = NULL;
   }
   for (int i = 0; i < nCh; i++) {
-    //cout << "INFO: initializing channel " << (chStart + i) << "..." << endl;
+    // cout << "INFO: initializing channel " << (chStart + i) << "..." << endl;
     try {
       stream[i] = new crorc_hwcf_coproc_handler(dev, bar, chStart + i, EB_SIZE);
     }
@@ -181,7 +186,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  //cout << "INFO: initialization done, waiting for data..." << endl;
+  // cout << "INFO: initialization done, waiting for data..." << endl;
 
   struct sigaction sigIntHandler;
   sigIntHandler.sa_handler = abort_handler;
@@ -193,7 +198,10 @@ int main(int argc, char *argv[]) {
   gettimeofday(&now, NULL);
   last = now;
 
-  printEventStatsHeader();
+  if (!batchMode) {
+    printEventStatsHeader();
+  }
+
   while (!done) {
     for (int i = 0; i < nCh; i++) {
 
@@ -201,7 +209,8 @@ int main(int argc, char *argv[]) {
       stream[i]->pollZmq();
 
       // push events to device
-      if (stream[i]->inputFilesPending() && stream[i]->eventsInChain() == 0) {
+      if (stream[i]->inputFilesPending() &&
+          (batchMode || stream[i]->eventsInChain() == 0)) {
         int result = stream[i]->enqueueNextEventToDevice();
         if (result && result != EAGAIN) {
           cerr << "ERROR: Failed to enqueue event "
@@ -223,25 +232,41 @@ int main(int argc, char *argv[]) {
       uint64_t librorcEventReference = 0;
       const uint32_t *event = NULL;
       if (stream[i]
-	  ->pollForEventToHost(&report, &event, &librorcEventReference)) {
-	if (stream[i]->outputFilesPending()) {
-	  checkHwcfFlags(report, stream[i]->nextOutputFile());
-	  if (stream[i]->writeEventToNextOutputFile(report, event)) {
-	    cerr << "ERROR: Failed to write event to file "
-		 << stream[i]->nextOutputFile() << ": " << strerror(errno)
-		 << endl;
-	  }
-	}
+              ->pollForEventToHost(&report, &event, &librorcEventReference)) {
+        if (stream[i]->outputFilesPending()) {
+          string nextOutputFile = stream[i]->nextOutputFile();
+          checkHwcfFlags(report, nextOutputFile);
+          if (stream[i]->writeEventToNextOutputFile(report, event)) {
+            cerr << "ERROR: Failed to write event to file " << nextOutputFile
+                 << ": " << strerror(errno) << endl;
+          } else {
+          }
+        }
 
-	if (stream[i]->refFilesPending()) {
-	  if (stream[i]->compareEventWithNextRefFile(report, event)) {
-	    cerr << "comparing output with " << stream[i]->nextRefFile()
-		 << " failed:" << strerror(errno) << endl;
-	  }
-	}
-	printEventStats(stream[i], report, event);
-	stream[i]->fcfClearStats();
-	stream[i]->releaseEventToHost(librorcEventReference);
+        if (stream[i]->refFilesPending()) {
+          string nextRefFile = stream[i]->nextRefFile();
+          if (stream[i]->compareEventWithNextRefFile(report, event)) {
+            cerr << nextRefFile << " : ";
+            switch (errno) {
+            case EFBIG:
+              cerr << " Size mismatch";
+              break;
+            case EILSEQ:
+              cerr << " Pattern mismatch";
+              break;
+            default:
+              cerr << strerror(errno);
+              break;
+            }
+            cerr << endl;
+            stream[i]->markRefFileDone();
+          }
+        }
+        if (!batchMode) {
+          printEventStats(stream[i], report, event);
+          stream[i]->fcfClearStats();
+        }
+        stream[i]->releaseEventToHost(librorcEventReference);
       }
 
     } // for
@@ -254,17 +279,18 @@ int main(int argc, char *argv[]) {
     }
     done |= all_done;
 
-    /*gettimeofday(&now, NULL);
-    if (done || timediff_us(last, now) > 1000000) {
-      if (done) {
-        cout << "=========== stopping ==========" << endl;
+    if (batchMode) {
+      gettimeofday(&now, NULL);
+      if (done || timediff_us(last, now) > 1000000) {
+        if (done) {
+          cout << "=========== stopping ==========" << endl;
+        }
+        for (int i = 0; i < nCh; i++) {
+          printStatusLine(chStart + i, stream[i]);
+        }
+        last = now;
       }
-      for (int i = 0; i < nCh; i++) {
-        streamStatus_t sts = stream[i]->getStatus();
-        printStatusLine(chStart + i, sts);
-      }
-      last = now;
-      }*/
+    }
   } // while(!done)
 
   for (int i = 0; i < nCh; i++) {
@@ -281,10 +307,11 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
-void printStatusLine(uint32_t channelId, struct streamStatus_t sts) {
-  cout << "Ch: " << channelId << " Input Queued: " << sts.nInputsQueued
-       << ", Input done: " << sts.nInputsDone
-       << ", Output done: " << sts.nOutputsDone << endl;
+void printStatusLine(uint32_t channelId, crorc_hwcf_coproc_handler *stream) {
+  struct streamStatus_t sts = stream->getStatus();
+  cout << "Ch: " << channelId << " InQueued: " << sts.nInputsQueued
+       << ", InDone: " << sts.nInputsDone << ", OutDone: " << sts.nOutputsDone
+       << ", InChain: " << stream->eventsInChain() << endl;
 }
 
 #if 0
@@ -297,15 +324,15 @@ int checkEvent(librorc::EventDescriptor *report, const uint32_t *event) {
 };
 #endif
 
-void checkHwcfFlags(librorc::EventDescriptor *report,
-                    const char *outputFileName) {
+void checkHwcfFlags(librorc::EventDescriptor *report, string outputFileName) {
   uint32_t hwcfflags = (report->calc_event_size >> 30) & 0x3;
   if (hwcfflags & 0x1) {
-    printf("WARNING: Found RCU protocol error(s) in %s\n", outputFileName);
+    cerr << "WARNING: Found RCU protocol error(s) in " << outputFileName
+         << endl;
   }
   if (hwcfflags & 0x2) {
-    printf("WARNING: Found ALTRO channel error flag(s) set in %s\n",
-           outputFileName);
+    cerr << "WARNING: Found ALTRO channel error flag(s) set in "
+         << outputFileName << endl;
   }
 }
 
