@@ -17,6 +17,18 @@ def ddlid2patch( DDL_ID ):
     raise ValueError, "DDL ID out of range: "+str(DDL_ID)
   return patch
 
+def findRefFile(rel_inpath, refdir):
+  refpath_tmp = os.path.abspath(os.path.join(refdir, rel_inpath))
+  reffilename = refpath_tmp.replace("TPC_", "FCF_")
+  if os.path.isfile(reffilename):
+    return reffilename
+  reffilename = refpath_tmp.replace("TPC_", "TPC_HWCLUST1_")[:-4]
+  if os.path.isfile(reffilename):
+    return reffilename
+  sys.stderr.write("WARN: could not find reffile for %s, skipping...\n" \
+                   % (rel_inpath))
+  return ""
+
 parser = argparse.ArgumentParser()
 parser.add_argument('-i', '--indir', help='directory containing raw DDL source files', required=True, type=str)
 parser.add_argument('-r', '--refdir', help='directory containing emulated HWCLUST1 reference files', type=str)
@@ -65,8 +77,10 @@ for root, dirnames, filenames in os.walk(args.indir):
     patchid = ddlid2patch(ddlid)
     rel_inpath = os.path.relpath(os.path.join(root, filename), args.indir)
     infilename = os.path.abspath(os.path.join(root, filename))
-    #refpath_tmp = os.path.join(args.refdir, rel_inpath)
-    reffilename = "" #refpath_tmp.replace("TPC_", "TPC_HWCLUST1_")[:-4]
+    if args.refdir:
+      reffilename = findRefFile(rel_inpath, args.refdir)
+    else:
+      reffilename = ""
     if args.outdir:
       outpath_tmp = os.path.join(args.outdir, rel_inpath)
       outfilename = os.path.abspath(outpath_tmp.replace("TPC_", "FCF_"))
