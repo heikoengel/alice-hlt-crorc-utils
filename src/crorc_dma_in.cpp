@@ -423,6 +423,10 @@ int configureFcf(librorc::event_stream *es, char *tpcRowMappingFile,
   fcf->setMergerDistance(4);
   fcf->setMergerAlgorithm(1);
   fcf->setChargeTolerance(0);
+  fcf->setNoiseSuppression(0);
+  fcf->setNoiseSuppressionMinimum(0);
+  fcf->setNoiseSuppressionNeighbor(0);
+  fcf->setTagEdgeClusters(0);
   if (rcuVersion == 2) {
     fcf->setBranchOverride(1);
   } else {

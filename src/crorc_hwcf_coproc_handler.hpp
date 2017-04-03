@@ -35,6 +35,40 @@ struct streamStatus_t {
   bool stopReceived;
 };
 
+struct fcfConfig_t {
+  uint16_t bypass_merger;
+  uint16_t charge_fluctuation;
+  uint16_t cluster_lower_limit;
+  uint16_t cluster_qmax_lower_limit;
+  uint16_t deconvolute_pad;
+  uint16_t merger_distance;
+  uint16_t noise_suppression;
+  uint16_t noise_suppression_minimum;
+  uint16_t noise_suppression_neighbor;
+  uint16_t single_pad_suppression;
+  uint16_t single_seq_limit;
+  uint16_t tag_deconvoluted_clusters;
+  uint16_t tag_edge_clusters;
+  uint16_t use_time_follow;
+};
+
+const struct fcfConfig_t fcfDefaultConfig = {
+  bypass_merger : 0,
+  charge_fluctuation : 0,
+  cluster_lower_limit : 10,
+  cluster_qmax_lower_limit : 0,
+  deconvolute_pad : 0,
+  merger_distance : 4,
+  noise_suppression : 0,
+  noise_suppression_minimum : 0,
+  noise_suppression_neighbor : 0,
+  single_pad_suppression : 0,
+  single_seq_limit : 0,
+  tag_deconvoluted_clusters : 0,
+  tag_edge_clusters : 1,
+  use_time_follow : 1
+};
+
 class crorc_hwcf_coproc_handler {
 public:
   crorc_hwcf_coproc_handler(librorc::device *dev, librorc::bar *bar,
@@ -43,7 +77,7 @@ public:
   // int initializeDmaToHost(ssize_t bufferSize);
   // int initializeDmaToDevice(ssize_t bufferSize);
   int initializeClusterFinder(const char *tpcMappingFile, uint32_t tpcPatch,
-                              uint32_t rcuVersion);
+                              uint32_t rcuVersion, struct fcfConfig_t fcfcfg);
   int initializeZmq(int port);
   int pollZmq();
 

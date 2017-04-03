@@ -23,6 +23,7 @@
 #include <sys/mman.h>
 #include <sys/signal.h>
 #include <errno.h>
+#include <getopt.h>
 #include "crorc_hwcf_coproc_handler.hpp"
 
 #define HELP_TEXT                                                              \
@@ -51,6 +52,7 @@ void printEventStatsHeader();
 void printEventStats(crorc_hwcf_coproc_handler *stream,
                      librorc::EventDescriptor *report, const uint32_t *event);
 void printStatusLine(uint32_t channelId, crorc_hwcf_coproc_handler *stream);
+void printHwcfConfig(struct fcfConfig_t cfg);
 
 inline long long timediff_us(struct timeval from, struct timeval to) {
   return ((long long)(to.tv_sec - from.tv_sec) * 1000000LL +
@@ -78,7 +80,32 @@ int main(int argc, char *argv[]) {
   uint32_t rcuVersion = 1;
   bool batchMode = false;
   int arg;
-  while ((arg = getopt(argc, argv, "hn:c:m:r:b")) != -1) {
+  fcfConfig_t fcfcfg = fcfDefaultConfig;
+
+  static struct option long_options[] = {
+      {"help", no_argument, 0, 'h'},
+      {"channel", required_argument, 0, 'c'},
+      {"device", required_argument, 0, 'n'},
+      {"mapping", required_argument, 0, 'm'},
+      {"batch", no_argument, 0, 'b'},
+      {"rcu2-data", required_argument, 0, 'r'},
+      {"deconvolute-pad", required_argument, 0, 'd'},
+      {"single-pad-suppression", required_argument, 0, 's'},
+      {"bypass-merger", required_argument, 0, 'B'},
+      {"cluster-lower-limit", required_argument, 0, 'l'},
+      {"cluster-qmax-lower-limit", required_argument, 0, 'q'},
+      {"single-sequence-limit", required_argument, 0, 'S'},
+      {"merger-distance", required_argument, 0, 'M'},
+      {"use-time-follow", required_argument, 0, 't'},
+      {"noise-suppression", required_argument, 0, 'N'},
+      {"noise-suppression-for-minima", required_argument, 0, 'i'},
+      {"noise-suppression-neighbor", required_argument, 0, 'u'},
+      {"tag-deconvoluted-clusters", required_argument, 0, 'D'},
+      {"tag-edge-clusters", required_argument, 0, 'e'},
+      {0, 0, 0, 0}};
+
+  while ((arg = getopt_long(argc, argv, "hn:c:m:r:bd:s:B:l:q:S:M:t:N:i:u:D:e:",
+                            long_options, NULL)) != -1) {
     switch (arg) {
     case 'h':
       cout << HELP_TEXT;
@@ -90,13 +117,56 @@ int main(int argc, char *argv[]) {
       channelId = strtoul(optarg, NULL, 0);
       break;
     case 'r':
-      rcuVersion = strtoul(optarg, NULL, 0);
+      if (strtoul(optarg, NULL, 0) > 0) {
+        rcuVersion = 2;
+      } else {
+        rcuVersion = 1;
+      }
       break;
     case 'b':
       batchMode = true;
       break;
     case 'm':
       mappingfile = optarg;
+      break;
+    case 'd':
+      fcfcfg.deconvolute_pad = (strtoul(optarg, NULL, 0)) & 1;
+      break;
+    case 's':
+      fcfcfg.single_pad_suppression = (strtoul(optarg, NULL, 0)) & 1;
+      break;
+    case 'B':
+      fcfcfg.bypass_merger = (strtoul(optarg, NULL, 0)) & 1;
+      break;
+    case 'l':
+      fcfcfg.cluster_lower_limit = (strtoul(optarg, NULL, 0)) & 0xffff;
+      break;
+    case 'q':
+      fcfcfg.cluster_qmax_lower_limit = (strtoul(optarg, NULL, 0)) & 0x7ff;
+      break;
+    case 'S':
+      fcfcfg.single_seq_limit = (strtoul(optarg, NULL, 0)) & 0xffff;
+      break;
+    case 'M':
+      fcfcfg.merger_distance = (strtoul(optarg, NULL, 0)) & 0xffff;
+      break;
+    case 't':
+      fcfcfg.use_time_follow = (strtoul(optarg, NULL, 0)) & 0xffff;
+      break;
+    case 'N':
+      fcfcfg.noise_suppression = (strtoul(optarg, NULL, 0)) & 0xffff;
+      break;
+    case 'i':
+      fcfcfg.noise_suppression_minimum = (strtoul(optarg, NULL, 0)) & 0xffff;
+      break;
+    case 'u':
+      fcfcfg.noise_suppression_neighbor = (strtoul(optarg, NULL, 0)) & 0xffff;
+      break;
+    case 'D':
+      fcfcfg.tag_deconvoluted_clusters = (strtoul(optarg, NULL, 0)) & 0x3;
+      break;
+    case 'e':
+      fcfcfg.tag_edge_clusters = (strtoul(optarg, NULL, 0)) & 1;
       break;
     }
   }
@@ -135,6 +205,7 @@ int main(int argc, char *argv[]) {
   time(&rawtime);
   printf("# Date: %s# Firmware Rev.: %07x, Firmware Date: %08x, RCU%d\n",
          ctime(&rawtime), sm->FwRevision(), sm->FwBuildDate(), rcuVersion);
+  printHwcfConfig(fcfcfg);
 
   int chStart, chEnd;
   int nCh;
@@ -168,8 +239,8 @@ int main(int argc, char *argv[]) {
       break;
     }
 
-    if (stream[i]
-            ->initializeClusterFinder(mappingfile, chStart + i, rcuVersion)) {
+    if (stream[i]->initializeClusterFinder(mappingfile, chStart + i, rcuVersion,
+                                           fcfcfg)) {
       cerr << "ERROR: Failed to intialize Clusterfinder on channel "
            << (chStart + i) << " with mappingfile " << mappingfile << endl;
       done = true;
@@ -362,4 +433,18 @@ void printEventStats(crorc_hwcf_coproc_handler *stream,
          nClusters, procTimeCC, inputIdleTimeCC, xoffTimeCC, numCandidates,
          mergerIdlePercent, fifoMergerMax, fifoDividerMax,
          stream->lastInputFile());
+}
+
+void printHwcfConfig(struct fcfConfig_t cfg) {
+  printf("# BypassMerger: %d, ChargeFluctiation: %d, ClusterLowerLimit: %d, "
+         "ClusterQmaxLowerLimit: %d, DeconvPad: %d, MergerDistance: %d, "
+         "NoiseSuppr: %d, NoiseSupprMin: %d, NoiseSupprNeighbor: %d, "
+         "SinglePadSuppr: %d, SingleSeqLimit: %d, TagDeconvClusters: %d, "
+         "TagEdgeClusters: %d, UseTimeFollow: %d\n",
+         cfg.bypass_merger, cfg.charge_fluctuation, cfg.cluster_lower_limit,
+         cfg.cluster_qmax_lower_limit, cfg.deconvolute_pad, cfg.merger_distance,
+         cfg.noise_suppression, cfg.noise_suppression_minimum,
+         cfg.noise_suppression_neighbor, cfg.single_pad_suppression,
+         cfg.single_seq_limit, cfg.tag_deconvoluted_clusters,
+         cfg.tag_edge_clusters, cfg.use_time_follow);
 }

@@ -94,7 +94,8 @@ crorc_hwcf_coproc_handler::~crorc_hwcf_coproc_handler() {
 }
 
 int crorc_hwcf_coproc_handler::initializeClusterFinder(
-    const char *tpcRowMappingFile, uint32_t tpcPatch, uint32_t rcuVersion) {
+    const char *tpcRowMappingFile, uint32_t tpcPatch, uint32_t rcuVersion,
+    struct fcfConfig_t fcfcfg) {
 
   if (tpcPatch > 5 || rcuVersion < 1 || rcuVersion > 2) {
     errno = EINVAL;
@@ -132,14 +133,19 @@ int crorc_hwcf_coproc_handler::initializeClusterFinder(
     m_fcf->writeMappingRamEntry(i, map[i]);
   }
 
-  m_fcf->setSinglePadSuppression(0);
-  m_fcf->setBypassMerger(0);
-  m_fcf->setDeconvPad(1);
-  m_fcf->setSingleSeqLimit(0);
-  m_fcf->setClusterLowerLimit(10);
-  m_fcf->setMergerDistance(4);
-  m_fcf->setMergerAlgorithm(1);
-  m_fcf->setChargeTolerance(0);
+  m_fcf->setSinglePadSuppression(fcfcfg.single_pad_suppression);
+  m_fcf->setBypassMerger(fcfcfg.bypass_merger);
+  m_fcf->setDeconvPad(fcfcfg.deconvolute_pad);
+  m_fcf->setSingleSeqLimit(fcfcfg.single_seq_limit);
+  m_fcf->setClusterLowerLimit(fcfcfg.cluster_lower_limit);
+  m_fcf->setClusterQmaxLowerLimit(fcfcfg.cluster_qmax_lower_limit);
+  m_fcf->setMergerDistance(fcfcfg.merger_distance);
+  m_fcf->setMergerAlgorithm(fcfcfg.use_time_follow);
+  m_fcf->setChargeTolerance(fcfcfg.charge_fluctuation);
+  m_fcf->setNoiseSuppression(fcfcfg.noise_suppression);
+  m_fcf->setNoiseSuppressionMinimum(fcfcfg.noise_suppression_minimum);
+  m_fcf->setNoiseSuppressionNeighbor(fcfcfg.noise_suppression_neighbor);
+  m_fcf->setTagEdgeClusters(fcfcfg.tag_edge_clusters);
 
   if (rcuVersion == 2) {
     m_fcf->setBranchOverride(1);
