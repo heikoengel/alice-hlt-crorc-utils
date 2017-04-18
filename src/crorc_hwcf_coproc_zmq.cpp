@@ -102,9 +102,10 @@ int main(int argc, char *argv[]) {
       {"noise-suppression-neighbor", required_argument, 0, 'u'},
       {"tag-deconvoluted-clusters", required_argument, 0, 'D'},
       {"tag-edge-clusters", required_argument, 0, 'e'},
+      {"correct-edge-clusters", required_argument, 0, 'E'},
       {0, 0, 0, 0}};
 
-  while ((arg = getopt_long(argc, argv, "hn:c:m:r:bd:s:B:l:q:S:M:t:N:i:u:D:e:",
+  while ((arg = getopt_long(argc, argv, "hn:c:m:r:bd:s:B:l:q:S:M:t:N:i:u:D:e:E:",
                             long_options, NULL)) != -1) {
     switch (arg) {
     case 'h':
@@ -167,6 +168,9 @@ int main(int argc, char *argv[]) {
       break;
     case 'e':
       fcfcfg.tag_edge_clusters = (strtoul(optarg, NULL, 0)) & 1;
+      break;
+    case 'E':
+      fcfcfg.correct_edge_clusters = (strtoul(optarg, NULL, 0)) & 1;
       break;
     }
   }

@@ -146,6 +146,7 @@ int crorc_hwcf_coproc_handler::initializeClusterFinder(
   m_fcf->setNoiseSuppressionMinimum(fcfcfg.noise_suppression_minimum);
   m_fcf->setNoiseSuppressionNeighbor(fcfcfg.noise_suppression_neighbor);
   m_fcf->setTagEdgeClusters(fcfcfg.tag_edge_clusters);
+  m_fcf->setCorrectEdgeClusters(fcfcfg.correct_edge_clusters);
   m_fcf->setTagDeconvolutedClusters(fcfcfg.tag_deconvoluted_clusters);
 
   if (rcuVersion == 2) {
