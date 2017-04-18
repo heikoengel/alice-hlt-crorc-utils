@@ -4,7 +4,7 @@
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or 
+ *  the Free Software Foundation, either version 3 of the License, or
  *  (at your option) any later version.
  *
  *  This program is distributed in the hope that it will be useful,
@@ -150,6 +150,7 @@ struct reg ddl_regs[] = {
     REG_ENTRY(RORC_REG_FCF_MP_TIMER_IDLE),
     REG_ENTRY(RORC_REG_FCF_MP_NUM_EVENTS),
     REG_ENTRY(RORC_REG_FCF_MP_NUM_CLUSTERS),
+    REG_ENTRY(RORC_REG_FCF_LIMITS2),
 };
 
 void __print_reg(struct reg reg, uint32_t val, const char *prefix, uint32_t ch) {
