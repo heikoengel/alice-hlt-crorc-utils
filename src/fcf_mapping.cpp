@@ -1,6 +1,6 @@
 /**
  *  fcf_mapping.cpp
- *  based on 
+ *  based on
  *  $ALIHLT_DC_SRCDIR/Components/CRORCInterfacing/ALIHLTCRORCTPCMapping.cpp
  *  by T. M. Steinbeck, 2001
  *
@@ -18,13 +18,14 @@
  *  along with this program. If not, see <http://www.gnu.org/licenses/>.
  **/
 
-#include <fstream>
-#include <vector>
-#include <errno.h>
-#include <string.h>
 #include "fcf_mapping.hh"
+#include <algorithm> // for std::sort()
+#include <errno.h>
+#include <fstream>
+#include <string.h>
+#include <vector>
 
-static const unsigned gkPatchStartRow[] = { 0, 30, 63, 90, 117, 139 };
+static const unsigned gkPatchStartRow[] = {0, 30, 63, 90, 117, 139};
 
 fcf_mapping::fcf_mapping(unsigned patchNr) {
   memset(fConfigWords, 0, gkConfigWordCnt * sizeof(uint32_t));
@@ -37,7 +38,7 @@ uint32_t fcf_mapping::operator[](unsigned ndx) {
   return (ndx < gkConfigWordCnt) ? fConfigWords[ndx] : 0xffffffff;
 }
 
-std::vector<std::string> splitString( std::string &s, char token) {
+std::vector<std::string> splitString(std::string &s, char token) {
   std::vector<std::string> ret;
   typedef std::string::size_type string_size;
   string_size i = 0;
@@ -77,6 +78,7 @@ int fcf_mapping::readMappingFile(const char *filename, uint32_t rcuVersion) {
   char buf[bufSize];
   std::string line;
   unsigned long lineCnt = 0;
+  std::vector<uint32_t> rowBranchPadHw;
   while (infile.good()) {
     line = "";
     unsigned count = 0;
@@ -86,18 +88,17 @@ int fcf_mapping::readMappingFile(const char *filename, uint32_t rcuVersion) {
       if (count > 0)
         line += buf;
     } while (count == bufSize - 1 && infile.fail() && !infile.eof() &&
-             !infile.bad());
-    // fail bit set if function stops extracing because
-    // buffer size limit is reached...
-
+             !infile.bad());    // fail bit set if function stops extracing because
+                                // buffer size limit is reached...
     ++lineCnt;
-    if (line.length() <= 0)
+    if (line.length() <= 0) {
       continue;
+    }
     char lineStr[1024];
     snprintf(lineStr, 1024, "%lu", lineCnt);
     std::vector<std::string> tokens;
-    //line.split(tokens, " \t");
     tokens = splitString(line, '\t');
+    char *cpErr = NULL;
     if (tokens.size() == 0) {
       continue;
     }
@@ -105,7 +106,6 @@ int fcf_mapping::readMappingFile(const char *filename, uint32_t rcuVersion) {
       errno = EINVAL;
       return -1;
     }
-    char *cpErr = NULL;
     // first word is number of this row
     unsigned long rowNr = strtoul(tokens[0].c_str(), &cpErr, 0);
     if (*cpErr != '\0') {
@@ -113,6 +113,7 @@ int fcf_mapping::readMappingFile(const char *filename, uint32_t rcuVersion) {
       return -1;
     }
     rowNr -= gkPatchStartRow[fPatchNr];
+
     // second word is number of pads in this row
     unsigned long padCnt = strtoul(tokens[1].c_str(), &cpErr, 0);
     if (*cpErr != '\0') {
@@ -123,13 +124,6 @@ int fcf_mapping::readMappingFile(const char *filename, uint32_t rcuVersion) {
       errno = EINVAL;
       return -1;
     }
-    unsigned long lastHWAddress = ~(0UL);
-    // Currently all channels are always active
-    bool active = true;
-
-    // Gain calib identical for all pads currently, 1.0 as 13 bit
-    // fixed point, with 1 bit position before decimal point
-    uint32_t gainCalib = (1 << 12);
 
     for (unsigned pad = 0; pad < padCnt; ++pad) {
       char padStr[1024];
@@ -140,50 +134,55 @@ int fcf_mapping::readMappingFile(const char *filename, uint32_t rcuVersion) {
         return -1;
       }
       unsigned long patchNr = (hwAddress & ~0xFFF) >> 12;
-      unsigned long lastPatchNr = (lastHWAddress & ~0xFFF) >> 12;
       if (patchNr != fPatchNr) {
-        if (lastHWAddress != ~(0UL) && lastPatchNr == fPatchNr) {
-          // Change in patch means this pad (which we ignore
-          // since it is in the wrong patch) and the preceeding
-          // one, must be border pads
-          fConfigWords[lastHWAddress & 0xFFF] |= (1 << 14);
-        }
-        lastHWAddress = hwAddress;
         continue;
       }
-      // First pad in a padrow is always border pad
-      bool isBorderPad = (lastHWAddress == ~(0UL));
-      unsigned long hwAddressDiff = (hwAddress >= lastHWAddress)
-                                        ? (hwAddress - lastHWAddress)
-                                        : (lastHWAddress - hwAddress);
-      // or if hwaddress differs by at least 2048 from preceeding hw address on
-      // RCU1 (branch jump)
-      if (rcuVersion == 1 && hwAddressDiff >= 2048) {
-        isBorderPad = true;
-      }
-      uint32_t configWord = (pad & 0xFF) | ((rowNr & 0x3F) << 8);
+
+      // Currently all channels are always active
+      bool active = true;
+
+      // Gain calibration identical for all pads: 1.0 as 13 bit fixed
+      // point, with 1 bit position before decimal point
+      uint32_t gainCalib = (1 << 12);
+
+      // first and last pad in a row are flagged as edge pads
+      bool isEdgePad = (pad == 0) || (pad == (padCnt - 1));
+
+      uint32_t configWord =
+          (gainCalib << 16) | ((rowNr & 0x3F) << 8) | (pad & 0xFF);
       if (active) {
         configWord |= (1 << 15);
       }
-      if (isBorderPad) {
-        configWord |= (1 << 14);
+      if (isEdgePad) {
+        configWord |= (1 << 29);
       }
-      // Only do this, if there was a previous pad and it belongs to this
-      // patch
-      if (isBorderPad && lastHWAddress != ~(0UL) && lastPatchNr == fPatchNr) {
-        // This pad is a border pad, therefore the previous one
-        // has to have been one as well...
-        fConfigWords[lastHWAddress & 0xFFF] |= (1 << 14);
-      }
-      configWord |= (gainCalib & 0x1FFF) << 16;
       fConfigWords[hwAddress & 0xFFF] = configWord;
-      lastHWAddress = hwAddress;
+      uint32_t branch = (hwAddress >> 11) & 1;
+      if (rcuVersion == 2) {
+        branch = 0;
+      }
+
+      rowBranchPadHw.push_back((rowNr << 25) | (branch << 24) | (pad << 16) |
+                               (hwAddress & 0xfff));
+    } // pad loop
+  } // while(infile.good())
+
+  // mark pads at borders of A/B branches
+  std::sort(rowBranchPadHw.begin(), rowBranchPadHw.end());
+  int rowBranchPadLast = -2;
+  for (unsigned int i = 0; i < rowBranchPadHw.size(); i++) {
+    int rowBranchPad = rowBranchPadHw[i] >> 16;
+    if (rowBranchPad != rowBranchPadLast + 1) {
+      fConfigWords[rowBranchPadHw[i] & 0xFFF] |= (1 << 14);
+      if (i > 0) {
+        fConfigWords[rowBranchPadHw[i - 1] & 0xFFF] |= (1 << 14);
+      }
     }
-    unsigned long lastPatchNr = (lastHWAddress & ~0xFFF) >> 12;
-    if (lastHWAddress != ~(0UL) && lastPatchNr == fPatchNr) {
-      // Last pad is always border pad by definition
-      fConfigWords[lastHWAddress & 0xFFF] |= (1 << 14);
-    }
+    rowBranchPadLast = rowBranchPad;
+  }
+  if (rowBranchPadHw.size()) {
+    int lastHwAddr = rowBranchPadHw[rowBranchPadHw.size() - 1] & 0xFFF;
+    fConfigWords[lastHwAddr] |= (1 << 14);
   }
   return 0;
 }
