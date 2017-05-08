@@ -101,7 +101,7 @@ int main(int argc, char *argv[]) {
       {"noise-suppression-for-minima", required_argument, 0, 'i'},
       {"noise-suppression-neighbor", required_argument, 0, 'u'},
       {"tag-deconvoluted-clusters", required_argument, 0, 'D'},
-      {"tag-edge-clusters", required_argument, 0, 'e'},
+      {"tag-border-clusters", required_argument, 0, 'e'},
       {"correct-edge-clusters", required_argument, 0, 'E'},
       {0, 0, 0, 0}};
 
@@ -167,7 +167,7 @@ int main(int argc, char *argv[]) {
       fcfcfg.tag_deconvoluted_clusters = (strtoul(optarg, NULL, 0)) & 0x3;
       break;
     case 'e':
-      fcfcfg.tag_edge_clusters = (strtoul(optarg, NULL, 0)) & 1;
+      fcfcfg.tag_border_clusters = (strtoul(optarg, NULL, 0)) & 1;
       break;
     case 'E':
       fcfcfg.correct_edge_clusters = (strtoul(optarg, NULL, 0)) & 1;
@@ -444,11 +444,11 @@ void printHwcfConfig(struct fcfConfig_t cfg) {
          "ClusterQmaxLowerLimit: %d, DeconvPad: %d, MergerDistance: %d, "
          "NoiseSuppr: %d, NoiseSupprMin: %d, NoiseSupprNeighbor: %d, "
          "SinglePadSuppr: %d, SingleSeqLimit: %d, TagDeconvClusters: %d, "
-         "TagEdgeClusters: %d, UseTimeFollow: %d\n",
+         "TagBorderClusters: %d, UseTimeFollow: %d\n",
          cfg.bypass_merger, cfg.charge_fluctuation, cfg.cluster_lower_limit,
          cfg.cluster_qmax_lower_limit, cfg.deconvolute_pad, cfg.merger_distance,
          cfg.noise_suppression, cfg.noise_suppression_minimum,
          cfg.noise_suppression_neighbor, cfg.single_pad_suppression,
          cfg.single_seq_limit, cfg.tag_deconvoluted_clusters,
-         cfg.tag_edge_clusters, cfg.use_time_follow);
+         cfg.tag_border_clusters, cfg.use_time_follow);
 }

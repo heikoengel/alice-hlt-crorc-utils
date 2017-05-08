@@ -48,7 +48,7 @@ struct fcfConfig_t {
   uint16_t single_pad_suppression;
   uint16_t single_seq_limit;
   uint16_t tag_deconvoluted_clusters;
-  uint16_t tag_edge_clusters;
+  uint16_t tag_border_clusters;
   uint16_t correct_edge_clusters;
   uint16_t use_time_follow;
 };
@@ -66,7 +66,7 @@ const struct fcfConfig_t fcfDefaultConfig = {
   single_pad_suppression : 0,
   single_seq_limit : 0,
   tag_deconvoluted_clusters : 0,
-  tag_edge_clusters : 0,
+  tag_border_clusters : 0,
   correct_edge_clusters : 0,
   use_time_follow : 1
 };
